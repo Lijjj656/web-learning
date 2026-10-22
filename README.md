@@ -57,6 +57,25 @@
 - `学习计划-20天全栈.md`：20 天全栈项目学习计划
 - `学习计划-收尾6天进阶.md`：项目收尾 6 天 · 边做边学与后端进阶路线
 
+## 🖼️ 运行效果截图
+
+> 把每个 Demo 跑起来后的界面截图，按下面文件名放进 `screenshots/` 文件夹即可自动显示。
+> 例如：浏览器打开 `01-HTML/Demo/index.html` 截图 → 保存为 `screenshots/01-html.png`。
+
+| 序号 | 项目 | 截图 |
+|----|------|------|
+| 01 | HTML 个人主页 | ![01-HTML](screenshots/01-html.png) |
+| 02 | CSS 登录页 | ![02-CSS](screenshots/02-css.png) |
+| 03 | JavaScript TodoList | ![03-JS](screenshots/03-js.png) |
+| 05 | Vue TodoList | ![05-Vue](screenshots/05-vue.png) |
+| 06 | Vue Router | ![06-Router](screenshots/06-router.png) |
+| 07 | Vue Pinia | ![07-Pinia](screenshots/07-pinia.png) |
+| 08 | Vue Axios | ![08-Axios](screenshots/08-axios.png) |
+| 09 | Element Plus 后台 | ![09-ElementPlus](screenshots/09-elementplus.png) |
+| ★ | NovaKB 全栈项目 | ![NovaKB](screenshots/novakb.png) |
+
+> 未上传截图前，表格里只显示图片名（不影响其他内容）。需要哪张图就补哪张，不必一次凑齐。
+
 ## 🚀 如何运行 Demo
 
 - **前端（Vue）**：进入对应 `Demo` 目录 → `npm install` → `npm run dev`
