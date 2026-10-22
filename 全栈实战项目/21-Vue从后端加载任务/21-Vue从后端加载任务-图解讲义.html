@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>10月16日｜Vue从后端加载任务</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#edf2f7;color:#24364d;font:17px/1.85 "Microsoft YaHei",sans-serif}main{max-width:1080px;margin:auto;padding:24px 18px 50px}header,section{background:#fff;border:1px solid #d7e1ec;border-radius:12px;padding:28px 36px;margin:18px 0}header{border-top:5px solid #3567ac}h1{font-size:31px;line-height:1.5;color:#17345c}h2{font-size:24px;color:#17345c;margin:0 0 16px}h3{font-size:19px;color:#2d527e;margin:22px 0 8px}.caption{color:#5d6e82;font-size:14px}.note{background:#edf4fe;border-left:4px solid #3567ac;padding:13px 18px;margin:16px 0}code{font-family:Consolas,"Microsoft YaHei",monospace;background:#eef2f7;padding:2px 5px;overflow-wrap:anywhere}pre{background:#f3f6fa;border:1px solid #d7e1ec;padding:15px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.7}.diagram{display:block;width:100%;height:auto;margin:18px 0}table{width:100%;border-collapse:collapse;font-size:15px}th,td{text-align:left;vertical-align:top;padding:10px;border-bottom:1px solid #d7e1ec}th{background:#eef4fb;color:#284e7a}li{margin:6px 0}details{border:1px solid #d7e1ec;padding:8px 13px;margin:12px 0}summary{cursor:pointer;color:#245eaa}@media(max-width:700px){header,section{padding:22px 17px}h1{font-size:25px}}@media print{@page{size:A4;margin:15mm}body{background:white;font-size:10.5pt;line-height:1.6}main{padding:0;max-width:none}header,section{border:0;border-radius:0;padding:0;margin:0 0 16px}section{break-before:page}pre{font-size:9pt}.diagram{break-inside:avoid}details:not([open])>*:not(summary){display:block!important}}
+</style></head><body><main>
+<header><p class="caption">2026-10-16 · 第21节 · 学习任务管理系统 · 图文与代码练习</p><h1>页面打开后，任务从哪里来？<br>让 Vue 读取后端和数据库</h1><p>之前页面里的任务可以先写在 JavaScript 数组里，刷新后就回到原样。今天理解另一条链：Vue 发起请求，Spring Boot 验证登录身份，MyBatis 查询 MySQL，再把 JSON 任务列表交回页面。</p><div class="note"><strong>今天的目标：</strong>看懂固定数组为什么被替换为 <code>tasks = ref([])</code>，能沿 <code>onMounted → loadTaskData → loadTasks → apiRequest → GET /api/tasks</code> 追踪一次加载，并用刷新和重新登录证明数据来自数据库。</div><p>阅读顺序：先看第 1～3 节的地图，再看第 4 节真实代码，最后做第 5～7 节跟写和验证。功能已经提前写进项目，不等于今天已经掌握。</p></header>
+<section><h2>1. 先看整体：一次“打开页面”发生了什么</h2><svg class="diagram" viewBox="0 0 1000 530" role="img" aria-label="页面加载任务的流程图"><rect width="1000" height="530" fill="#f6f9fc"/><g font-family="Microsoft YaHei" fill="#24364d" font-size="24"><rect x="55" y="45" width="890" height="75" rx="12" fill="#fff" stroke="#b9cde2" stroke-width="2"/><text x="80" y="78">① Vue 页面挂载</text><text x="80" y="108" font-size="19">onMounted 触发 loadTaskData()</text><path d="M500 125v45" stroke="#56708f" stroke-width="3" marker-end="url(#a)"/><rect x="55" y="175" width="890" height="75" rx="12" fill="#edf4fe" stroke="#b9cde2" stroke-width="2"/><text x="80" y="208">② apiRequest 发送 GET /api/tasks</text><text x="80" y="238" font-size="19">Authorization: Bearer token</text><path d="M500 255v45" stroke="#56708f" stroke-width="3" marker-end="url(#a)"/><rect x="55" y="305" width="410" height="100" rx="12" fill="#eaf4ee" stroke="#b9cde2" stroke-width="2"/><text x="80" y="340">③ 后端成功</text><text x="80" y="373" font-size="19">Controller → Service → MySQL</text><text x="80" y="398" font-size="19">返回自己的任务 JSON</text><rect x="535" y="305" width="410" height="100" rx="12" fill="#fff1e8" stroke="#e4c2ad" stroke-width="2"/><text x="560" y="340">③ 后端失败</text><text x="560" y="373" font-size="19">401 / 网络错误 → catch 提示</text><text x="560" y="398" font-size="19">不把失败当成任务列表</text><path d="M260 420v45h480v-45" fill="none" stroke="#56708f" stroke-width="3" marker-end="url(#a)"/><rect x="55" y="465" width="890" height="45" rx="12" fill="#fff" stroke="#b9cde2" stroke-width="2"/><text x="80" y="495" font-size="19">④ tasks.value 更新 → 表格、统计、筛选使用同一份后端数据</text></g><defs><marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#56708f"/></marker></defs></svg><p class="caption">图 1：页面初次打开时，不是直接“显示数据库”，而是先发 HTTP 请求，再把响应放进 Vue 的响应式状态。</p><p>要记住三个角色：<strong>页面状态</strong>是 <code>tasks.value</code>；<strong>接口</strong>是 <code>GET /api/tasks</code>；<strong>数据库</strong>保存真正持久的数据。三者不是同一个东西。</p></section>
+<section><h2>2. 为什么删掉固定数组？</h2><table><thead><tr><th>写法</th><th>页面打开时的数据来源</th><th>刷新后的结果</th></tr></thead><tbody><tr><td>固定数组</td><td>直接使用 App.vue 里的示例对象</td><td>重新加载示例，新增内容容易丢失</td></tr><tr><td>后端加载</td><td>请求 API，API 查询当前用户的 MySQL 记录</td><td>重新请求数据库，已保存的任务仍在</td></tr></tbody></table><p>所以“替换数组”不是把任务换一种写法，而是把数据源从<strong>前端临时内存</strong>换成<strong>后端持久化数据</strong>。前端仍然需要一个数组来渲染表格，只是这个数组由接口响应填充。</p><div class="note">一个常见误解：浏览器 Network 里看到 <code>tasks 200</code>，只说明请求拿到了响应；要理解完整功能，还要知道后端通过 token 决定查哪个 user_id。</div></section>
+<section><h2>3. 先理解“响应式状态”</h2><pre><code>const tasks = ref([]);
+
+tasks.value = await apiRequest("/api/tasks");</code></pre><p><code>ref([])</code> 创建一个可以被 Vue 追踪的状态。JavaScript 代码修改它时要写 <code>tasks.value</code>；模板中使用 <code>tasks</code>，Vue 会自动取出值并重新渲染表格。</p><p>这里的空数组不是“没有任务”，而是“请求完成前还没有放入任务”。请求完成后，响应 JSON 数组覆盖它；如果后端返回空数组，页面显示空状态，这也是真实结果。</p><h3>加载和失败要分开</h3><pre><code>async function loadTasks() {
+  tasksLoading.value = true;
+  try {
+    tasks.value = await apiRequest("/api/tasks");
+  } finally {
+    tasksLoading.value = false;
+  }
+}</code></pre><p>加载状态控制表格的 loading 效果；请求错误由 <code>apiRequest</code> 和上层调用的 <code>catch</code> 处理。不要在请求失败时把 <code>tasks</code> 伪造为示例数据，否则用户会误以为数据库里还有这些任务。</p></section>
+<section><h2>4. 沿真实代码追踪一次 GET</h2><h3>4.1 App.vue：页面挂载</h3><pre><code>onMounted(async () => {
+  if (!token.value) {
+    router.push("/login");
+    return;
+  }
+  await loadTaskData();
+});</code></pre><p>组件第一次进入页面时执行。先确认有没有 token，再加载任务和统计。不同版本的行号可能变化，以当前文件搜索到的函数为准。</p><h3>4.2 loadTaskData 和 loadTasks</h3><pre><code>async function loadTasks() {
+  tasksLoading.value = true;
+  try {
+    tasks.value = await apiRequest("/api/tasks");
+  } finally {
+    tasksLoading.value = false;
+  }
+}
+
+async function loadTaskData() {
+  await Promise.all([loadTasks(), loadStats()]);
+}</code></pre><p><code>Promise.all</code> 表示任务列表和统计都开始请求；今天先重点看 <code>loadTasks</code>。<code>await</code> 等待响应完成，右侧赋值让模板得到新数据。</p><h3>4.3 apiRequest：统一带上凭证</h3><pre><code>const response = await fetch(path, {
+  ...options,
+  headers: {
+    Authorization: `Bearer ${token.value}`,
+    "Content-Type": "application/json",
+  },
+});
+return readJson(response);</code></pre><p>请求地址是相对路径 <code>/api/tasks</code>；开发环境由 Vite 代理转到 8084。token 让后端知道当前用户。前端不把 <code>user_id</code> 放进请求让用户自由填写，这个归属由后端 JWT 决定。</p><h3>4.4 后端接收并查询</h3><pre><code>@GetMapping
+public List&lt;TaskResponse&gt; list(
+    @RequestHeader(value = "Authorization", required = false)
+    String authorization) {
+  return service.list(authorization);
+}
+
+// Service 中的核心意思
+Long userId = currentUserId(authorization);
+return mapper.findByUserId(userId)
+    .stream().map(TaskResponse::from).toList();</code></pre><p>Controller 接住请求，Service 从已验证 token 得到 userId，Mapper 执行带 <code>WHERE user_id = #{userId}</code> 的查询，响应只包含当前用户的数据。</p></section>
+<section><h2>5. 今天要跟写的代码</h2><p>先在草稿中写，不要一上来改正式文件。把下面函数拆成三句话：打开加载、请求列表、放入状态。</p><pre><code>async function loadTasks() {
+  tasksLoading.value = true;
+  try {
+    const data = await apiRequest("/api/tasks");
+    tasks.value = data;
+  } finally {
+    tasksLoading.value = false;
+  }
+}</code></pre><ol><li><code>tasksLoading.value = true</code>：开始请求，页面显示加载中。</li><li><code>await apiRequest</code>：等待后端返回自己的任务数组。</li><li><code>tasks.value = data</code>：把响应放进 Vue 状态，表格自动更新。</li><li><code>finally</code>：无论成功失败都关闭 loading。</li></ol><h3>相近小练习</h3><p>在草稿里写一个 <code>loadOnlyTasks</code>：调用同一个接口，成功后返回任务数组，失败时让错误继续抛出，不要吞掉错误。参考答案：</p><details><summary>打开参考答案</summary><pre><code>async function loadOnlyTasks() {
+  const data = await apiRequest("/api/tasks");
+  return data;
+}</code></pre></details><p>这里特意没有加 <code>try/catch</code>：如果当前函数没有办法给用户一个合适提示，就让上层处理。捕获异常后什么都不做，会造成“页面看起来没反应”的问题。</p></section>
+<section><h2>6. 实操验证：证明数据来自后端</h2><h3>检查一：页面打开</h3><p>保持后端 8084 和前端 5173 都运行，刷新任务页面。Network 中找到 <code>tasks</code>，预期状态 200；点开 Response，应是任务数组。不要只看表格，还要看这次请求。</p><h3>检查二：刷新不丢数据</h3><p>记住当前列表中的一个任务名称，刷新页面。若仍出现，是因为页面重新向后端读取，而不是浏览器保留了当前数组。</p><h3>检查三：重新登录</h3><p>退出后重新登录，打开任务页。应再次出现自己的任务；如果出现别人的任务，说明后端 user_id 隔离有问题，应停止继续操作。</p><h3>检查四：无 token</h3><p>清除会话或使用未登录页面访问任务接口，预期 401，页面跳转登录或提示重新登录。401 不是“列表为空”，而是身份没有通过验证。</p><div class="note">今天不要求你新建任务；新增任务属于明天的“Vue 新建任务接入后端”。今天重点是看懂“已有数据怎样从后端进入页面”。</div></section>
+<section><h2>7. 复盘与完成标准</h2><p>今天结束前，尝试不用看讲义回答：</p><ul><li>为什么前端仍有 <code>tasks</code> 数组，但它不再是固定示例数组？</li><li>页面刷新后，哪个请求把数据库记录重新放进 <code>tasks.value</code>？</li><li>为什么前端不应该让用户提交 <code>user_id</code> 来决定归属？</li><li>请求失败时，为什么不能把任务列表替换成示例数据？</li></ul><p>完成标准分三档记录：</p><table><thead><tr><th>层级</th><th>证据</th></tr></thead><tbody><tr><td>读懂</td><td>能画出 onMounted → apiRequest → GET /api/tasks → tasks.value</td></tr><tr><td>跟写</td><td>能按参考写出 loadTasks，并说明 finally 的作用</td></tr><tr><td>会用</td><td>能独立把一个“加载固定数组”的小函数改成读取接口，并验证刷新仍保留数据</td></tr></tbody></table><p class="note"><strong>今天的定位：</strong>后端任务查询已经存在，今天学习的是前端如何接入它；不要把“页面原本就能显示任务”当成今天已经掌握。</p></section>
+<p class="caption" style="text-align:center">10月16日 · 先看地图，再追一条请求，再跟写，再验证数据来源</p>
+</main></body></html>

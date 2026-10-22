@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>10月18日｜后端修改、状态和删除</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#eef2f7;color:#22344d;font:16.5px/1.8 "Microsoft YaHei",sans-serif}
+main{max-width:1080px;margin:auto;padding:22px 16px 60px}
+.card{background:#fff;border:1px solid #d5e0ec;border-radius:12px;padding:26px 32px;margin:16px 0}
+.card>h2{font-size:23px;color:#17345c;margin:0 0 6px}
+.card>.sub{color:#61738a;font-size:14px;margin:0 0 18px}
+h1{font-size:29px;line-height:1.45;color:#17345c;margin:0 0 10px}
+h3{font-size:18px;color:#2d527e;margin:22px 0 8px}
+code{font-family:Consolas,"Microsoft YaHei",monospace;background:#eef2f7;padding:2px 5px;overflow-wrap:anywhere}
+pre{background:#f5f8fb;border:1px solid #d9e3ee;border-radius:8px;padding:14px 16px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14.5px;line-height:1.75;margin:10px 0}
+.hd{border-top:5px solid #3567ac}
+.hd .meta{color:#5d6e82;font-size:13.5px;letter-spacing:.3px}
+.goal{background:#edf4fe;border-left:4px solid #3567ac;padding:14px 18px;margin:14px 0}
+.evidence{background:#fff8e8;border:1px solid #f0d9a8;border-radius:10px;padding:16px 20px;margin:14px 0}
+.evidence h3{margin:0 0 8px;color:#8a6412;font-size:17px}
+.evidence ol{margin:6px 0 0;padding-left:22px}
+.steps{list-style:none;padding:0;margin:0}
+.steps li{display:flex;gap:12px;align-items:flex-start;padding:9px 0;border-bottom:1px dashed #dbe4ee}
+.steps li:last-child{border-bottom:0}
+.steps .t{flex:0 0 92px;color:#3567ac;font-weight:600;font-size:14.5px;padding-top:1px}
+.steps .d{flex:1}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
+.cmp>div{border-radius:10px;padding:14px 18px;border:1px solid}
+.bad{background:#fdf1f1;border-color:#e8bcbc}
+.good{background:#eef7f1;border-color:#b9d9c4}
+.cmp h4{margin:0 0 8px;font-size:16px}
+.bad h4{color:#a63b3b}.good h4{color:#2c6b45}
+.cmp p{margin:6px 0 0;font-size:14.5px}
+table{width:100%;border-collapse:collapse;font-size:14.5px;margin:12px 0}
+th,td{text-align:left;vertical-align:top;padding:9px 11px;border-bottom:1px solid #dde5ee}
+th{background:#eef4fb;color:#284e7a}
+.note{background:#edf4fe;border-left:4px solid #3567ac;padding:12px 16px;margin:14px 0;font-size:15px}
+.check{list-style:none;padding:0;margin:10px 0}
+.check li{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px dashed #dde5ee}
+.check li:last-child{border-bottom:0}
+.check input{margin-top:6px;width:15px;height:15px;flex:0 0 auto}
+.check b{color:#17345c}
+.check .pass{display:block;color:#5d6e82;font-size:14px}
+pre .blank{background:#fff3cd;border-bottom:1px dashed #c9a227;padding:0 3px}
+details{border:1px solid #d7e1ec;border-radius:8px;padding:8px 14px;margin:12px 0;background:#fafcfe}
+summary{cursor:pointer;color:#245eaa;font-weight:600;font-size:15px}
+.warn{background:#fff6f6;border-left:4px solid #c0504d;padding:12px 16px;margin:14px 0;font-size:15px}
+.diagram{display:block;width:100%;height:auto;margin:14px 0}
+.cap{color:#5d6e82;font-size:13.5px;margin-top:4px}
+.q{background:#f7f9fc;border:1px solid #e0e8f1;border-radius:8px;padding:12px 16px;margin:10px 0;font-size:15px}
+@media(max-width:760px){.cmp{grid-template-columns:1fr}.card{padding:20px 17px}h1{font-size:24px}.steps .t{flex:0 0 74px}}
+@media print{@page{size:A4;margin:14mm}body{background:#fff;font-size:10.5pt}main{padding:0;max-width:none}.card{border:0;padding:0;margin:0 0 14px;break-inside:avoid}pre{font-size:8.8pt}details:not([open])>*:not(summary){display:block!important}.diagram{break-inside:avoid}}
+</style></head><body><main>
+
+<div class="card hd">
+<p class="meta">2026-10-18 · 第 23 节 · 学习任务管理系统 · 后端为主</p>
+<h1>点「编辑」「已完成」「删除」之后，<br>后端怎样只改你自己的那一行？</h1>
+<div class="goal"><strong>一句话目标：</strong>说清 <code>WHERE id = #{id} AND user_id = #{userId}</code> 为什么必须有两个条件，并能用 <strong>404</strong> 和 <strong>204</strong> 两个状态码证明它生效。</div>
+
+<div class="evidence">
+<h3>今天结束时，你必须留下这 3 条证据</h3>
+<ol>
+<li>一次改状态：Network 里 <code>PUT</code> 返回 <strong>200</strong>，MySQL 里那条 <code>status</code> 真的变了，刷新后仍在。</li>
+<li>一次越权尝试：用别人的任务编号发 <code>PUT</code>，得到 <strong>404</strong>，且那条数据没被改动。</li>
+<li>一次删除：<code>DELETE</code> 返回 <strong>204</strong>，响应体为空，刷新后不回来，统计数字 −1。</li>
+</ol>
+<p style="margin:8px 0 0;font-size:14px;color:#7a6a44">留不下这三条，今天就不算完成——页面上点成功不算证据。</p>
+</div>
+
+<h3>今天的时间盒（做完一项勾一项）</h3>
+<ul class="steps">
+<li><span class="t">20 min</span><span class="d">看第 1、2 节：改动怎么走完一圈，双条件 WHERE 为什么不可省</span></li>
+<li><span class="t">25 min</span><span class="d">看第 3 节真实代码，四个文件逐个对上地图里的位置</span></li>
+<li><span class="t">55 min</span><span class="d">第 4 节跟写：<b>先填空</b>，再对照答案，最后不看答案重写一遍</span></li>
+<li><span class="t">25 min</span><span class="d">第 5 节四项验证，逐条勾选并记下实际看到的状态码</span></li>
+<li><span class="t">15 min</span><span class="d">第 6、7 节：自测 5 问 + 记录"读懂 / 跟写 / 会用"到哪一层</span></li>
+</ul>
+<p class="cap">昨天停在：新建任务落库（POST → INSERT → 201）。今天接着走同一条任务的后半生：改 → 删。前端今天只做联调，不新增功能。</p>
+</div>
+
+<div class="card">
+<h2>1. 一次改动走完一圈</h2>
+<p class="sub">先横向看完整条链，再拆开看每一环。</p>
+<svg class="diagram" viewBox="0 0 1000 250" role="img" aria-label="修改与删除链路图">
+<rect width="1000" height="250" fill="#f7fafd"/>
+<g font-family="Microsoft YaHei" font-size="15" fill="#22344d">
+<rect x="18" y="52" width="150" height="72" rx="10" fill="#fff" stroke="#b9cde2" stroke-width="2"/>
+<text x="93" y="80" text-anchor="middle" font-size="16" font-weight="600">①页面动作</text><text x="93" y="104" text-anchor="middle">编辑保存 / 改状态</text><text x="93" y="120" text-anchor="middle">确认删除</text>
+<path d="M170 88h26" stroke="#56708f" stroke-width="3" marker-end="url(#ar)"/>
+<rect x="200" y="52" width="176" height="72" rx="10" fill="#edf4fe" stroke="#b9cde2" stroke-width="2"/>
+<text x="288" y="80" text-anchor="middle" font-size="16" font-weight="600">②请求</text><text x="288" y="104" text-anchor="middle">PUT /api/tasks/{id}</text><text x="288" y="120" text-anchor="middle">DELETE /api/tasks/{id}</text>
+<path d="M378 88h26" stroke="#56708f" stroke-width="3" marker-end="url(#ar)"/>
+<rect x="408" y="52" width="164" height="72" rx="10" fill="#fff" stroke="#b9cde2" stroke-width="2"/>
+<text x="490" y="80" text-anchor="middle" font-size="16" font-weight="600">③Controller</text><text x="490" y="104" text-anchor="middle">取 id + body</text><text x="490" y="120" text-anchor="middle">+ Authorization</text>
+<path d="M574 88h26" stroke="#56708f" stroke-width="3" marker-end="url(#ar)"/>
+<rect x="604" y="52" width="172" height="72" rx="10" fill="#fff" stroke="#b9cde2" stroke-width="2"/>
+<text x="690" y="80" text-anchor="middle" font-size="16" font-weight="600">④Service</text><text x="690" y="104" text-anchor="middle">token → userId</text><text x="690" y="120" text-anchor="middle">组装 Task（含 setId）</text>
+<path d="M778 88h26" stroke="#56708f" stroke-width="3" marker-end="url(#ar)"/>
+<rect x="808" y="52" width="174" height="72" rx="10" fill="#eaf4ee" stroke="#b9cde2" stroke-width="2"/>
+<text x="895" y="80" text-anchor="middle" font-size="16" font-weight="600">⑤MySQL</text><text x="895" y="104" text-anchor="middle">UPDATE / DELETE</text><text x="895" y="120" text-anchor="middle">WHERE id AND user_id</text>
+
+<rect x="604" y="164" width="172" height="60" rx="10" fill="#f2f6fa" stroke="#cfdae6"/>
+<text x="690" y="188" text-anchor="middle" font-size="14.5">返回值 = 受影响行数</text><text x="690" y="209" text-anchor="middle" font-size="14.5">0 行 → 抛 404</text>
+<path d="M690 164v-32" stroke="#8fa3ba" stroke-width="2" stroke-dasharray="4 3"/>
+<rect x="808" y="164" width="174" height="60" rx="10" fill="#f2f6fa" stroke="#cfdae6"/>
+<text x="895" y="188" text-anchor="middle" font-size="14.5">改到 → 200 / 204</text><text x="895" y="209" text-anchor="middle" font-size="14.5">没改到 → 404</text>
+<path d="M808 194h-28" stroke="#8fa3ba" stroke-width="2" marker-end="url(#ar2)"/>
+<text x="18" y="196" font-size="14.5" fill="#5d6e82">userId 全程只来自 token</text><text x="18" y="216" font-size="14.5" fill="#5d6e82">请求里永远不出现 user_id</text>
+</g>
+<defs><marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#56708f"/></marker>
+<marker id="ar2" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#8fa3ba"/></marker></defs>
+</svg>
+<p class="cap">图 1：新增时 id 由数据库生成、不进请求；修改和删除必须知道"动哪一条"，所以 id 出现在地址里，归属则交给 token。</p>
+
+<h3>改完之后，数据库里那一行长什么样</h3>
+<table>
+<thead><tr><th>字段</th><th>改之前</th><th>改之后（把状态改成"已完成"）</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>12</td><td>12</td><td>不变——编号是身份，永远不动</td></tr>
+<tr><td>user_id</td><td>3</td><td>3</td><td>不变——归属不能被改走</td></tr>
+<tr><td>title</td><td>复习 Java</td><td>复习 Java</td><td>本例未改</td></tr>
+<tr><td>status</td><td>未开始</td><td><strong>已完成</strong></td><td>只有这里变</td></tr>
+<tr><td>created_at</td><td>2026-10-17 22:10</td><td>2026-10-17 22:10</td><td>不变</td></tr>
+</tbody></table>
+<p><code>UPDATE</code> 的本质：<strong>只改 SET 后面列出的列，其余原样保留</strong>。这也解释了为什么改状态要把四个字段都发回去——接口会把它们全部重写，少发一个就可能被写成空。</p>
+</div>
+
+<div class="card">
+<h2>2. 今天的硬规矩：WHERE 里必须两个条件</h2>
+<p class="sub">这是今天唯一必须刻进脑子的一条。</p>
+<div class="cmp">
+<div class="bad"><h4>✗ 只写 id</h4>
+<pre style="background:#fff">UPDATE tasks
+SET status = #{status}
+WHERE id = #{id}</pre>
+<p><strong>后果：</strong>编号通常连续自增，猜到别人的编号就能改别人的任务。等于把权限交给调用方。</p>
+</div>
+<div class="good"><h4>✓ id + user_id</h4>
+<pre style="background:#fff">UPDATE tasks
+SET status = #{status}
+WHERE id = #{id}
+  AND user_id = #{userId}</pre>
+<p><strong>后果：</strong>编号决定"动哪条"，用户决定"能不能动"。不是自己的 → 影响 0 行 → 404。</p>
+</div>
+</div>
+<p><code>AND</code> 表示两个条件<strong>同时成立</strong>。删除是完全相同的写法：<code>DELETE FROM tasks WHERE id = #{id} AND user_id = #{userId}</code>。</p>
+
+<h3>为什么"不存在"和"是别人的"返回同一个 404</h3>
+<p>这是刻意设计，不是偷懒。如果分别返回"任务不存在"和"你没有权限"，别人就能靠状态码<strong>探测出某个编号的任务是否真实存在</strong>，属于信息泄露。统一 404 后，外界只能知道"这个编号对我不可用"。</p>
+<table>
+<thead><tr><th>情况</th><th>SQL 影响行数</th><th>接口返回</th><th>页面表现</th></tr></thead>
+<tbody>
+<tr><td>动的是自己的任务</td><td>1</td><td>200（PUT）/ 204（DELETE）</td><td>绿色成功提示，列表或统计刷新</td></tr>
+<tr><td>编号不存在</td><td>0</td><td>404</td><td>红色错误提示</td></tr>
+<tr><td>编号是别人的任务</td><td>0</td><td>404（同上，故意不区分）</td><td>同样是错误提示</td></tr>
+<tr><td>没 token / token 过期</td><td>根本不执行</td><td>401</td><td>退回登录页</td></tr>
+</tbody></table>
+<div class="note"><strong>受影响行数</strong>是 MyBatis 返回的 <code>int</code>，表示这条 SQL 真正改动了几行。它是后端判断"到底有没有动到东西"的唯一依据——比任何前端判断都可靠，因为前端可以被绕过。</div>
+</div>
+
+<div class="card">
+<h2>3. 对真实代码（带着问题读）</h2>
+<p class="sub">前端 <code>09-ElementPlus-后台Demo/src/App.vue</code>；后端 <code>14-SpringBoot-JWT-Demo</code>。行号为 2026-10-18 实际位置，编辑器 Ctrl+G 跳转。</p>
+
+<div class="q"><strong>先自己答：</strong>编辑和新建用的是同一个函数，它靠什么区分两者？——看完下面这段确认答案。</div>
+<h3>3.1 前端三个入口（App.vue 203 / 232 / 255）</h3>
+<pre><code>// 203 打开编辑弹窗：先记住"正在编辑哪一条"
+function openEditDialog(task) {
+  editingTaskId.value = task.id;
+  newTask.value = { title: task.title, category: task.category,
+                    priority: task.priority, status: task.status };
+  dialogVisible.value = true;
+}
+
+// 209 保存：靠 editingTaskId 是否为 null 分流
+const editing = editingTaskId.value !== null;
+await apiRequest(editing ? `/api/tasks/${editingTaskId.value}` : "/api/tasks", {
+  method: editing ? "PUT" : "POST",
+  body: JSON.stringify({ ...newTask.value, title: newTask.value.title.trim() }),
+});</code></pre>
+
+<div class="q"><strong>问题：</strong>只想改一个状态，为什么还要把 title、category、priority 一起发回去？</div>
+<pre><code>// 232 下拉框改状态
+async function updateTask(task) {
+  await apiRequest(`/api/tasks/${task.id}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      title: task.title, category: task.category,
+      priority: task.priority, status: task.status,
+    }),
+  });
+  await loadStats();          // 状态变了，统计数字要跟着变
+  ElMessage.success("任务已保存");
+}</code></pre>
+<p>因为当前 PUT 会重写四个可编辑字段。只发 <code>{status:"已完成"}</code> 会被 <code>@Valid</code> 判为缺字段，返回 <strong>400</strong>。另外注意：改状态只重载统计、不重载列表；删除则重载列表——因为改完行还在，删完行要消失。</p>
+
+<pre><code>// 255 删除
+async function removeTask(task) {
+  try {
+    await ElMessageBox.confirm(`确定删除“${task.title}”吗？`, "删除确认", { type: "warning" });
+  } catch {
+    return;                    // ← 用户取消：直接返回，Network 里不会出现 DELETE
+  }
+  await apiRequest(`/api/tasks/${task.id}`, { method: "DELETE" });
+  await loadTaskData();
+  ElMessage.success("任务已删除");
+}</code></pre>
+
+<h3>3.2 Controller（TaskController.java 27–36）</h3>
+<pre><code>@PutMapping("/{id}")
+public TaskResponse update(@PathVariable Long id,
+                           @Valid @RequestBody TaskRequest request,
+                           @RequestHeader(value = "Authorization", required = false)
+                           String authorization) {
+    return service.update(id, request, authorization);
+}
+
+@DeleteMapping("/{id}")
+@ResponseStatus(HttpStatus.NO_CONTENT)     // ← 204 就是这里来的
+public void delete(@PathVariable Long id,
+                   @RequestHeader(value = "Authorization", required = false)
+                   String authorization) {
+    service.delete(id, authorization);
+}</code></pre>
+
+<h3>3.3 Service（TaskService.java 36–52）</h3>
+<pre><code>public TaskResponse update(Long id, TaskRequest request, String authorization) {
+    Long userId = currentUserId(authorization);      // 身份只认 token
+    Task task = new Task();
+    task.setId(id);                                  // 比 create 多的一步
+    task.setUserId(userId);                          // 归属条件
+    task.setTitle(request.title().trim());
+    task.setCategory(request.category().trim());
+    task.setPriority(request.priority().trim());
+    task.setStatus(request.status().trim());
+    if (mapper.update(task) == 0) throw notFound();  // 0 行 → 404
+    return TaskResponse.from(requireOwned(id, userId));
+}
+
+public void delete(Long id, String authorization) {
+    Long userId = currentUserId(authorization);
+    if (mapper.delete(id, userId) == 0) throw notFound();
+}</code></pre>
+<p>和昨天的 <code>create</code> 比只有两点不同：<code>update</code> 多了 <code>setId</code>（指定改哪条，而新增由数据库生成）；<code>update/delete</code> 多了"检查返回值"这一步。</p>
+
+<h3>3.4 SQL（TaskMapper.java 13–14、TaskMapper.xml 29–37）</h3>
+<pre><code>&lt;update id="update" parameterType="com.learning.jwtapi.Task"&gt;
+  UPDATE tasks
+  SET title = #{title}, category = #{category},
+      priority = #{priority}, status = #{status}
+  WHERE id = #{id} AND user_id = #{userId}
+&lt;/update&gt;
+
+&lt;delete id="delete"&gt;
+  DELETE FROM tasks WHERE id = #{id} AND user_id = #{userId}
+&lt;/delete&gt;</code></pre>
+<p><code>SET</code> 回答"改成什么"，<code>WHERE</code> 回答"允许改哪条"。少了 <code>WHERE</code> 会改掉整张表，少了 <code>user_id</code> 会改掉别人的。数据库列名 <code>user_id</code> 与 Java 属性 <code>userId</code> 只是命名风格不同，指向同一个字段。</p>
+</div>
+
+<div class="card">
+<h2>4. 跟写：先填空，别照抄</h2>
+<p class="sub">三段都有挖空。<b>先在草稿里自己填</b>，再展开答案核对，最后合上答案重写一遍。</p>
+
+<h3>A. 改状态的 SQL</h3>
+<pre><code>UPDATE tasks
+SET <span class="blank">______</span> = #{status}
+WHERE id = #{id} <span class="blank">______</span> user_id = #{userId}</code></pre>
+<details><summary>答案与讲解</summary>
+<pre><code>UPDATE tasks
+SET status = #{status}
+WHERE id = #{id} AND user_id = #{userId}</code></pre>
+<p>第一空是"改哪一列"，第二空是连接两个条件的关键字。写的时候心里过三件事：改哪张表、改成什么、同时限制编号与归属。</p>
+</details>
+
+<h3>B. Service 里组装对象</h3>
+<pre><code>Long userId = currentUserId(<span class="blank">____________</span>);
+Task task = new Task();
+task.<span class="blank">______</span>(id);              // 指定改哪条
+task.<span class="blank">________</span>(userId);          // 归属条件
+task.setStatus(request.status().trim());
+if (mapper.update(task) <span class="blank">___</span> 0) throw notFound();</code></pre>
+<details><summary>答案与讲解</summary>
+<pre><code>Long userId = currentUserId(authorization);
+Task task = new Task();
+task.setId(id);
+task.setUserId(userId);
+task.setStatus(request.status().trim());
+if (mapper.update(task) == 0) throw notFound();</code></pre>
+<p>三个来源要分清：<code>id</code> 来自请求地址，<code>userId</code> 来自 token，字段值来自请求体。最后一行的 <code>== 0</code> 是今天的核心——它把"SQL 没动到任何行"翻译成"返回 404"。</p>
+</details>
+
+<h3>C. 删除</h3>
+<pre><code>Long userId = currentUserId(authorization);
+if (mapper.<span class="blank">______</span>(id, userId) == 0) throw <span class="blank">________</span>();</code></pre>
+<details><summary>答案与讲解</summary>
+<pre><code>Long userId = currentUserId(authorization);
+if (mapper.delete(id, userId) == 0) throw notFound();</code></pre>
+<p>删除不需要组装 Task、不需要请求体——它只需要"删哪条"和"当前是谁"，分别在地址和 token 里。</p>
+</details>
+
+<h3>相近小练习：把"改状态"改成"改优先级"</h3>
+<p>提示：只动 <code>SET</code> 后面那一列，<code>WHERE</code> 一个字都别改——归属条件和改哪个字段无关。</p>
+<details><summary>参考答案</summary>
+<pre><code>UPDATE tasks
+SET priority = #{priority}
+WHERE id = #{id} AND user_id = #{userId}</code></pre>
+</details>
+<p class="cap">草稿只用于理解，不要粘进正式类，也不要拿教学 SQL 去跑真实数据库。</p>
+</div>
+
+<div class="card">
+<h2>5. 验证清单（逐条勾）</h2>
+<p class="sub">每条写明"看到什么算通过"。没通过就按第 6 节的定位表查。</p>
+<ul class="check">
+<li><input type="checkbox"><div><b>改状态落库</b>：把一条自己的任务改成"已完成"
+<span class="pass">通过标准：Network 出现 <code>PUT /api/tasks/{id}</code>，状态 <strong>200</strong>；MySQL 执行 <code>SELECT id,title,status FROM tasks WHERE user_id=&lt;你的id&gt;;</code> 显示已变成"已完成"；刷新页面仍在，完成数 +1。</span></div></li>
+
+<li><input type="checkbox"><div><b>越权修改被拦</b>：执行 <code>SELECT id,user_id FROM tasks;</code> 挑一条 user_id 不是你的，记下 id
+<span class="pass">通过标准：控制台发 PUT 得到 <strong>404</strong>，且那条任务内容没变。代码见下。</span></div></li>
+
+<li><input type="checkbox"><div><b>删除返回 204</b>：删掉一条自己的测试任务
+<span class="pass">通过标准：Network 出现 <code>DELETE</code>，状态 <strong>204</strong>，响应标签页是空的（没有 JSON）；刷新后不回来，总数 −1，数据库里也查不到。</span></div></li>
+
+<li><input type="checkbox"><div><b>取消删除不发请求</b>：点删除后点"取消"
+<span class="pass">通过标准：Network 里<strong>不出现</strong> DELETE，数据库无变化。这验证"确认"只发生在前端、"删除权"在后端。</span></div></li>
+</ul>
+
+<h3>越权测试代码（粘进控制台）</h3>
+<pre><code>fetch(`/api/tasks/&lt;别人的任务id&gt;`, {
+  method: "PUT",
+  headers: { "Content-Type": "application/json",
+             "Authorization": "Bearer " + localStorage.getItem("token") },
+  body: JSON.stringify({ title: "尝试篡改", category: "Web",
+                         priority: "普通", status: "未开始" })
+}).then(r =&gt; console.log("状态码:", r.status));</code></pre>
+<p class="cap">如果 <code>localStorage.getItem("token")</code> 返回 null，先在控制台输入 <code>localStorage</code> 看一眼实际键名再替换。</p>
+</div>
+
+<div class="card">
+<h2>6. 踩坑与定位</h2>
+<h3>状态码定位表</h3>
+<table>
+<thead><tr><th>看到</th><th>含义</th><th>该去哪查</th></tr></thead>
+<tbody>
+<tr><td><strong>401</strong></td><td>身份没通过</td><td>token 还在不在、过没过期、请求头带没带</td></tr>
+<tr><td><strong>400</strong></td><td>请求内容不合格</td><td>看「载荷」：多半是缺了某个必填字段（改状态时最容易踩）</td></tr>
+<tr><td><strong>404</strong></td><td>没动到任何行</td><td>编号是否存在？是否属于当前用户？</td></tr>
+<tr><td><strong>500</strong></td><td>服务器内部出错</td><td>看 Spring Boot 运行窗口的异常堆栈</td></tr>
+</tbody></table>
+
+<div class="warn"><strong>这几个坑你已经踩过，或马上会踩：</strong>
+<ul style="margin:6px 0 0">
+<li>MySQL 里直接 <code>SELECT * FROM users;</code> 报 <strong>1046 No database selected</strong>——先 <code>USE learning_app;</code>，或写全 <code>learning_app.users</code>。</li>
+<li>你的 <code>user_id</code> <strong>不是 1</strong>（库里有 21 个用户）。查之前先 <code>SELECT id,name FROM users;</code> 确认自己的编号，否则会误以为"数据没入库"。</li>
+<li>改状态只发 <code>status</code> 一个字段 → 400。四个字段必须齐全。</li>
+<li>页面上看不到变化 ≠ 数据库没写进去。可能是列表没重载、统计没刷新，或归属不对被过滤。<strong>判断依据只有两个：Network 状态码 + 数据库查询结果。</strong></li>
+</ul>
+</div>
+</div>
+
+<div class="card">
+<h2>7. 自测与收尾</h2>
+<p class="sub">合上讲义先自己答，再展开核对。答不上来的就是今天还没真正学会的部分。</p>
+<details><summary>① 为什么 update 比 create 多一行 task.setId(id)？</summary><p>create 的编号由数据库自增生成，不需要指定；update 是改已有记录，必须先告诉 SQL 改哪一条。</p></details>
+<details><summary>② SQL 里去掉 AND user_id = #{userId} 会发生什么？</summary><p>只要知道编号就能改/删任何人的任务。而编号通常连续自增，等于完全不设防。</p></details>
+<details><summary>③ 为什么删除返回 204 而创建返回 201？</summary><p>201 表示"新建了资源，把内容回给你"，所以响应体是新任务对象；204 表示"成功了但没什么可回的"，所以响应体为空。</p></details>
+<details><summary>④ "不存在"和"属于别人"为什么返回同一个 404？</summary><p>避免泄露"某个编号的任务是否真实存在"。统一 404 后外界只能知道"这个编号对我不可用"。</p></details>
+<details><summary>⑤ mapper.update() 返回的 int 有什么用？</summary><p>是受影响行数。0 表示没匹配到任何行（不存在，或不属于你），Service 据此抛 404。它是后端判断成败的唯一可靠依据。</p></details>
+
+<h3>今天的分层记录（自己填）</h3>
+<table>
+<thead><tr><th>层级</th><th>达标证据</th><th>今天是否达到</th></tr></thead>
+<tbody>
+<tr><td>读懂</td><td>能画出改 / 删两条路径，指出 WHERE 双条件在哪一层</td><td></td></tr>
+<tr><td>跟写</td><td>合上答案能写出三段：改状态 SQL、Service 五行、删除三行</td><td></td></tr>
+<tr><td>会用</td><td>独立完成越权测试拿到 404，并用 SQL 证明修改和删除都落库</td><td></td></tr>
+</tbody></table>
+<p class="cap">明天的统计接口用的是同一套思路——所有查询都带 <code>WHERE user_id = #{userId}</code>。今天把这条规矩吃透，明天只需要学聚合函数本身。</p>
+</div>
+
+<p class="cap" style="text-align:center;padding:14px 0">10月18日 · 后端为主：修改、状态、删除与用户归属 · 留不下三条证据就不算完成</p>
+</main></body></html>

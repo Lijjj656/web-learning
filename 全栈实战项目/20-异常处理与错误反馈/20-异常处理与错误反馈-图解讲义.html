@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>10月15日｜异常处理与错误反馈</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#edf2f7;color:#23334b;font:17px/1.9 "Microsoft YaHei",sans-serif}main{max-width:1080px;margin:auto;padding:26px 20px 55px}header,section{background:white;border:1px solid #d9e2ed;border-radius:12px;padding:30px 38px;margin:20px 0}header{border-top:5px solid #3567ac}h1{font-size:31px;line-height:1.5;color:#17345c}h2{font-size:24px;color:#17345c;margin:0 0 18px}h3{font-size:19px;color:#2d527e;margin:23px 0 10px}p{margin:12px 0}a{color:#245eaa}nav{display:flex;gap:8px 18px;flex-wrap:wrap}.note{background:#edf4fe;border-left:4px solid #3567ac;padding:15px 20px;margin:18px 0}.caption{font-size:14px;color:#52647b}.diagram{display:block;width:100%;height:auto;margin:20px 0}code{font-family:Consolas,"Microsoft YaHei",monospace;background:#eef2f7;padding:2px 4px;overflow-wrap:anywhere}pre{font-size:15px;line-height:1.7;background:#f3f6fa;border:1px solid #d9e2ed;padding:17px;white-space:pre-wrap;overflow-wrap:anywhere}pre code{background:none;padding:0}table{width:100%;border-collapse:collapse;font-size:15px}th,td{text-align:left;vertical-align:top;border-bottom:1px solid #d9e2ed;padding:11px}th{background:#eef4fb;color:#284e7a}.table-wrap{overflow:auto}li{margin:7px 0}footer{text-align:center;color:#52647b;font-size:14px}details{margin:15px 0;padding:10px;border:1px solid #d9e2ed}summary{cursor:pointer;color:#245eaa}
+@media(max-width:700px){header,section{padding:23px 18px}main{padding:12px}h1{font-size:25px}}
+@media print{@page{size:A4;margin:16mm}body{background:white;font-size:10.5pt;line-height:1.65}main{padding:0;max-width:none}header,section{border:0;border-radius:0;padding:0;margin:0 0 18px}section{break-before:page}h1{font-size:23pt}h2{font-size:17pt}h3{font-size:12pt}nav{display:none}pre{font-size:9pt;padding:10px;break-inside:avoid}table{font-size:9.5pt}tr{break-inside:avoid}th,td{padding:7px}.diagram,.note{break-inside:avoid}.caption{font-size:9pt}details{border:0;padding:0}details:not([open])> :not(summary){display:block!important}summary{list-style:none}footer{font-size:9pt}}
+</style>
+</head>
+<body><main>
+<header>
+<p class="caption">2026-10-15 · 第20节 · 学习任务管理系统 · 图文与代码练习</p>
+<h1>操作失败后，<br>后端怎样告诉网页发生了什么？</h1>
+<p>上一节，你写出了“修改优先级”“删除自己的任务”的 SQL，并接上了 Java 删除方法。这一节接着方法里的 <code>throw notFound()</code>，把失败的返回过程走完整。</p>
+<div class="note"><strong>今天解决的需求：</strong>标题有误、登录失效、任务不存在、服务发生异常时，网页不能只显示“失败”，也不能显示成功。后端返回合适的状态码和消息，前端据此提示用户。</div>
+<p>阅读方式：先看第 1～3 节的地图，再沿第 4 节删除失败的例子追踪代码。最后做第 6 节的书写练习。现在只整理课程，没有把这节记成已学完。</p>
+<nav aria-label="目录"><a href="#map">1 整体地图</a><a href="#status">2 状态码</a><a href="#page">3 页面变化</a><a href="#trace">4 一条404的旅程</a><a href="#other">5 其他错误</a><a href="#write">6 写代码</a><a href="#check">7 验证与复盘</a></nav>
+</header>
+
+<section id="map">
+<h2>1. 先定位：今天补的是“结果怎样返回”</h2>
+<p>之前的主线是：网页 → Controller → Service → Mapper / MyBatis → MySQL。现在增加一条错误返回路径。统一异常处理器 <code>ApiExceptionHandler</code> 位于 Spring Boot 后端内部，负责把异常整理成 HTTP 响应。</p>
+<img class="diagram" src="20-异常处理与错误反馈-配图/error-flow.png" width="1500" height="1080" alt="完整流程图：网页发请求，经Controller到Service和数据库。成功返回正常响应；失败由异常处理器转换成错误响应。网页读取响应，决定显示成功或错误。">
+<p class="caption">图 1：错误处理是整条功能链的返回分支。发生异常后，正常路径中后续尚未执行的语句不会继续运行；Spring 寻找匹配的异常处理器。</p>
+<h3>为什么要单独写异常处理器？</h3>
+<p>新增、修改、删除都有可能失败。如果每个 Controller 都重复写相同错误响应，维护容易不一致。统一处理器让 Service 表达“发生了什么”，再由集中代码决定“怎么返回给网页”。</p>
+<p>这不是新建一套业务，也不是把正常请求全部绕到异常处理器。只有匹配的异常发生时，它才负责生成错误响应。</p>
+<div class="note"><strong>本节的前后关系：</strong>前一节决定“允许改哪条任务”；本节决定“不允许或失败时怎样返回”；后续前端课程决定“接收响应后怎样恢复页面、提示用户”。</div>
+</section>
+
+<section id="status">
+<h2>2. 状态码与消息：一份响应里的两部分</h2>
+<p>后端返回的 HTTP 响应包含状态码和响应体。状态码用于分类结果，响应体可以提供更具体的文字。例如删除不属于自己的任务：</p>
+<pre><code>HTTP 状态码：404
+响应体（JSON）：
+{"message":"任务不存在或不属于当前用户"}</code></pre>
+<p>这里不是“JSON 中有个 404 字段”。404 是 HTTP 响应状态，前端通过 <code>response.status</code> 读取；<code>message</code> 是 JSON 字段，前端解析后通过 <code>data.message</code> 读取。</p>
+<img class="diagram" src="20-异常处理与错误反馈-配图/status-map.png" width="1500" height="760" alt="四类错误：400输入不符合要求，401登录身份未通过验证，404在本项目中任务不存在或不属于当前用户，500服务端处理发生意外错误。">
+<div class="table-wrap"><table><thead><tr><th>状态</th><th>本项目里的触发例子</th><th>用户怎么处理</th></tr></thead><tbody>
+<tr><td>400</td><td>请求标题空白、状态值非法、JSON 格式错误</td><td>检查并修正输入</td></tr>
+<tr><td>401</td><td>密码错误；缺少、无效或过期 token</td><td>检查账号密码或重新登录</td></tr>
+<tr><td>404</td><td>任务已被删除，或当前用户操作别人的任务</td><td>刷新列表；不能操作他人任务</td></tr>
+<tr><td>500</td><td>后端出现未预料到的处理错误，例如数据库连接失败引发异常</td><td>稍后重试；开发者查看日志排查</td></tr>
+</tbody></table></div>
+<p>补充认识：200 常表示请求成功；201 表示创建成功；204 表示成功但没有响应体。项目注册重复邮箱会返回 409。今天先重点理解四类错误，不需要背所有状态码。</p>
+<p>权限不足也可以采用 403；但本项目对“任务不存在”和“属于别人”统一返回 404，减少泄露任务是否存在。这个规则特指当前任务接口。</p>
+<div class="note"><strong>服务断开不等于一定收到 500。</strong>如果 Spring Boot 已关闭，浏览器可能根本收不到 HTTP 响应；经过 Vite 代理时也可能收到代理生成的错误。不要只凭一个数字就断定根因。</div>
+</section>
+
+<section id="page">
+<h2>3. 这一节让网页哪里更可靠？</h2>
+<p>页面不一定多一个菜单。变化在于同一个按钮遇到失败时的反馈：不错误地显示成功，让用户知道接下来怎么办。</p>
+<table><thead><tr><th>网页操作</th><th>正确行为</th><th>当前实现的位置</th></tr></thead><tbody>
+<tr><td>任务名称留空，点创建</td><td>网页先提示“请输入任务名称”，不发创建请求</td><td>App.vue 的 createTask，211 行附近</td></tr>
+<tr><td>绕过网页提交空标题</td><td>后端仍检查，返回 400；不会新增空任务</td><td>TaskRequest + @Valid + 异常处理器</td></tr>
+<tr><td>登录凭证已失效，操作任务</td><td>任务请求收到 401，清除会话并提示重新登录</td><td>App.vue 的 apiRequest，75 行附近</td></tr>
+<tr><td>删除不存在或他人的任务</td><td>返回 404；前端显示错误，数据库不会删除他人记录</td><td>TaskService.delete → notFound → 统一处理器</td></tr>
+<tr><td>服务处理出现意外错误</td><td>返回通用服务错误；详细异常保留在后端日志</td><td>异常处理器 unexpected；前端 readJson</td></tr>
+</tbody></table>
+<p>当前项目已经有这些处理代码，本课要读懂并做一个小改动。此前验收空标题网页提示，只证明前端拦截成功；后端校验由直接接口测试验证，不能把两者混为一谈。</p>
+<p>当前前端对 400、401、500 使用自己的提示文案，404 则通常采用后端 <code>message</code>。因此只修改后端 400 文案，网页提示不一定跟着变；必须追踪前端如何处理这个状态。</p>
+</section>
+
+<section id="trace">
+<h2>4. 从你写过的删除方法，追踪到网页提示</h2>
+<h3>4.1 SQL：没有找到可删除记录</h3>
+<pre><code>DELETE FROM tasks
+WHERE id = #{id} AND user_id = #{userId};</code></pre>
+<p>假设任务 12 属于用户 3，而当前登录用户是 8。任务编号匹配，但用户编号不匹配，因此删除行数是 0。记录保持不变。</p>
+<h3>4.2 Service：停止正常流程并抛出异常</h3>
+<pre><code>public void delete(Long id, String authorization) {
+    Long userId = currentUserId(authorization);
+    if (mapper.delete(id, userId) == 0) {
+        throw notFound();
+    }
+}</code></pre>
+<p>你已经写过这段。现在展开 <code>notFound()</code>：</p>
+<pre><code>private ResponseStatusException notFound() {
+    return new ResponseStatusException(
+        HttpStatus.NOT_FOUND,
+        "任务不存在或不属于当前用户"
+    );
+}</code></pre>
+<p><code>new ResponseStatusException(...)</code> 创建异常对象，携带状态和原因；<code>return</code> 把这个异常对象交回调用处；前面的 <code>throw</code> 才真正抛出它并中断当前处理。只创建异常对象而不 throw，不会自动中断。</p>
+<p><code>HttpStatus.NOT_FOUND</code> 是 404 的 Java 名称。不要先背完整类名，先看出这是“状态 + 说明文字”的组合。</p>
+<h3>4.3 统一处理器：把异常变成响应</h3>
+<pre><code>@ExceptionHandler(ResponseStatusException.class)
+public ResponseEntity&lt;Map&lt;String, String&gt;&gt; responseStatus(
+        ResponseStatusException error) {
+    String message = error.getReason() == null
+            ? "请求失败" : error.getReason();
+    return ResponseEntity.status(error.getStatusCode())
+            .body(Map.of("message", message));
+}</code></pre>
+<table><thead><tr><th>写法</th><th>在这次请求里的含义</th></tr></thead><tbody>
+<tr><td>@RestControllerAdvice</td><td>标在处理器类上，让 Spring 使用它集中处理 Controller 请求中的异常</td></tr>
+<tr><td>@ExceptionHandler(...)</td><td>这个方法负责匹配指定类型的异常</td></tr>
+<tr><td>error.getStatusCode()</td><td>从异常取得 404</td></tr>
+<tr><td>error.getReason()</td><td>取得“任务不存在或不属于当前用户”</td></tr>
+<tr><td>Map.of("message", message)</td><td>准备 message 字段，Spring 将其转换成 JSON</td></tr>
+<tr><td>ResponseEntity</td><td>让我们指定 HTTP 响应的状态和响应体</td></tr>
+</tbody></table>
+<p>这段代码可同时处理携带 401、404、409 等状态的 ResponseStatusException，不是每个状态都要写一个重复方法。校验异常和意外异常则由其他匹配的方法处理。</p>
+<h3>4.4 前端：响应失败时进入 catch</h3>
+<pre><code>// App.vue：readJson 的处理摘录
+if (!response.ok) {
+    // 400、401、500 等有专门分支
+    throw new Error(data?.message || "请求失败，请稍后再试");
+}
+
+// removeTask 的处理摘录
+try {
+    await apiRequest(`/api/tasks/${task.id}`, { method: "DELETE" });
+    await loadTaskData();
+    ElMessage.success("任务已删除");
+} catch (error) {
+    ElMessage.error(error.message);
+}</code></pre>
+<p>这是分段摘录，不是完整函数。404 会使 apiRequest 内部的 readJson 抛出 Error，因此 await 后面的成功提示不会执行，转入 catch 显示错误。</p>
+<p>原生 fetch 收到 404、500 时通常仍会得到一个 Response，不会仅因为状态是错误就自动进入 catch。项目的 readJson 主动检查 <code>response.ok</code> 并抛出错误，才把失败交给上层 catch。</p>
+</section>
+
+<section id="other">
+<h2>5. 400、401、500 分别在哪一层产生？</h2>
+<h3>400：请求内容没有通过规则</h3>
+<pre><code>// TaskRequest.java
+@NotBlank @Size(max = 200) String title
+
+// Controller 方法参数
+@Valid @RequestBody TaskRequest request</code></pre>
+<p>RequestBody 转换请求数据；Valid 检查规则。空白标题会触发校验异常，由处理器的 validation 方法返回 400 和消息。JSON 根本无法解析时，由 malformedInput 分支处理。</p>
+<h3>401：当前身份未通过验证</h3>
+<pre><code>throw new ResponseStatusException(
+    HttpStatus.UNAUTHORIZED,
+    "Token 无效或已过期"
+);</code></pre>
+<p>项目中 AuthService 负责验证凭证；任务 Service 通过它确认用户。无效凭证不能读写任务。多个条件同时不合法时，不要依赖它们固定的报错顺序；练习每次只制造一种错误。</p>
+<h3>500：未预料到的服务器错误</h3>
+<pre><code>@ExceptionHandler(Exception.class)
+public ResponseEntity&lt;Map&lt;String, String&gt;&gt; unexpected(
+        Exception error) {
+    log.error("API request failed", error);
+    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+            .body(Map.of("message", "服务暂时不可用，请稍后重试"));
+}</code></pre>
+<p>这里保留详细日志，给页面通用提示；不是忽略异常，也不能把所有错误都当作 500。已有更具体的异常处理器优先匹配对应错误。</p>
+<div class="note">不要为练习 500 修改数据库密码、破坏表或在正式项目加一个故意崩溃的公开接口。今天通过代码与参考响应理解，隔离测试在后续测试课补充。</div>
+<h3>对应的真实文件与行号</h3>
+<p class="caption">行号依据 2026-10-15 本机代码；后续修改可能变化。前端根目录是桌面 09-ElementPlus-后台Demo，后端根目录是桌面 14-SpringBoot-JWT-Demo。</p>
+<table><thead><tr><th>文件</th><th>当前行号</th><th>阅读重点</th></tr></thead><tbody>
+<tr><td>后端 src/main/java/com/learning/jwtapi/TaskService.java</td><td>49、73</td><td>删除结果判断、404 异常对象</td></tr>
+<tr><td>同目录 ApiExceptionHandler.java</td><td>16、19、25、34、39</td><td>集中处理器，以及业务、校验、格式、意外异常的分支</td></tr>
+<tr><td>同目录 TaskRequest.java</td><td>7～11</td><td>输入规则</td></tr>
+<tr><td>同目录 AuthService.java</td><td>24～43</td><td>无效 token、缺少凭证的 401</td></tr>
+<tr><td>前端 src/App.vue</td><td>39、61、255</td><td>readJson、apiRequest、removeTask 的失败处理</td></tr>
+</tbody></table>
+</section>
+
+<section id="write">
+<h2>6. 今天的代码练习：先模仿，再做一个小变化</h2>
+<p>练习写在草稿里，不直接粘进正式类。下面不要求你默写整个处理器，也不把“看过代码”记成“已经会写”。</p>
+<h3>跟写 A：创建并抛出一条 404 异常</h3>
+<pre><code>if (mapper.delete(id, userId) == 0) {
+    throw new ResponseStatusException(
+        HttpStatus.NOT_FOUND,
+        "任务不存在或不属于当前用户"
+    );
+}</code></pre>
+<p>它与原先的 <code>throw notFound()</code> 表达同一意图，只是把辅助方法的内容展开。不要在正式项目同时保留两个重复检查。</p>
+<h3>跟写 B：写一个最小的响应构建方法</h3>
+<pre><code>// 草稿辅助方法；不是项目中已有的方法名
+public ResponseEntity&lt;Map&lt;String, String&gt;&gt; buildNotFoundResponse() {
+    return ResponseEntity.status(HttpStatus.NOT_FOUND)
+            .body(Map.of("message", "任务不存在或不属于当前用户"));
+}</code></pre>
+<p>这个方法只演示“构建响应”，单独写出来不会自动处理异常；实际项目还需要类上的 Advice 和方法上的 ExceptionHandler 等连接关系。先看清 return 返回的是完整响应，包含 404 和 message。</p>
+<h3>相近练习：把上面改成“输入有误”的响应</h3>
+<p>在草稿里另写一个 <code>buildBadRequestResponse</code> 方法：状态改成 <code>HttpStatus.BAD_REQUEST</code>，文字改成“请检查任务名称”。参考上面方法的结构，尝试自己输入，再看参考答案。</p>
+<details><summary>参考答案：400 响应构建</summary><pre><code>public ResponseEntity&lt;Map&lt;String, String&gt;&gt; buildBadRequestResponse() {
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(Map.of("message", "请检查任务名称"));
+}</code></pre></details>
+<h3>实际项目的小改动：让 404 提示更容易理解</h3>
+<p>跟写通过后，再在我的检查下修改 TaskService 的 notFound 原因文字为“任务不存在或无法访问，请刷新任务列表”，保留 NOT_FOUND 状态和 SQL 归属条件。修改前先找到唯一位置；不要替换所有出现“请求失败”的字符串。</p>
+<p>这项正式改动目前只是课堂任务，尚未执行。修改后需要重新启动使用新代码的后端再验证，浏览器刷新不会自动更新已经启动的旧 JAR。仅更改草稿不会影响页面。</p>
+<p>今天亲手完成的变化虽然小，但它贯穿 Service → 异常处理器 → HTTP → 前端消息，而不是机械地修改一个孤立字符串。</p>
+</section>
+
+<section id="check">
+<h2>7. 验证、时间与完成标准</h2>
+<h3>先做两个不改数据的检查</h3>
+<p>网页留空标题点创建，再看浏览器开发者工具 Network：应有前端提示，没有新的 POST 请求。它验证前端拦截，不是后端 400。</p>
+<p>后端启动后，在一个空闲 PowerShell 执行下面命令。它不带 token 查询任务，只读取响应，不新增或删除数据：</p>
+<pre><code>try {
+    Invoke-RestMethod -Uri "http://localhost:8084/api/tasks" -Method GET
+} catch {
+    if ($_.Exception.Response) {
+        [int]$_.Exception.Response.StatusCode
+    } else {
+        $_.Exception.Message
+    }
+}</code></pre>
+<p>服务正常运行且没有凭证时，预期输出 401。连接失败时显示网络错误，不能直接认定后端返回了 500。这段用于 Windows PowerShell；在未启动后端时先启动，不重复抢占 8084。</p>
+<h3>跟写与改动后再做一轮受控验证</h3>
+<p>沿用已有 api-smoke-test.ps1 检查后端 400、401、404 和任务 CRUD；运行前由我确认后端启动的是新代码。脚本会创建随机测试账号、创建并清理自己的测试任务，保留测试账号，不动原有任务。今天准备讲义时没有重新运行，不把之前的测试结果当作本节新验收。</p>
+<p>404 文案改动后，需要直接请求查看 JSON 并确认前端处理该 message；不能只凭编译通过就记录页面提示通过。500 本课先做代码追踪，不要求破坏环境制造故障。</p>
+<table><thead><tr><th>环节</th><th>时间</th><th>今天做什么</th></tr></thead><tbody>
+<tr><td>完整地图</td><td>20 分钟</td><td>先读第 1～3 节，知道错误返回链在哪里</td></tr>
+<tr><td>概念与设计</td><td>25 分钟</td><td>区别状态码、JSON 消息、网络错误</td></tr>
+<tr><td>代码追踪</td><td>25 分钟</td><td>沿删除失败追到前端 catch</td></tr>
+<tr><td>跟写</td><td>55 分钟</td><td>异常与响应片段，检查后做小改动</td></tr>
+<tr><td>相近练习</td><td>25 分钟</td><td>从 404 响应改写为 400 响应</td></tr>
+<tr><td>验证</td><td>15 分钟</td><td>只检查本节相关行为，不重复完整点击流程</td></tr>
+<tr><td>复盘</td><td>15 分钟</td><td>记录哪些能解释、能跟写、能自己改</td></tr>
+</tbody></table>
+<h3>本节完成标准</h3>
+<ul><li>能沿“删除行数为 0 → throw → 统一处理 → 404 + JSON → catch 提示”说明发生什么。</li><li>在参考帮助下写出异常或响应片段，能把 404 例子改成 400。</li><li>完成一次有位置、有目的的小改动和对应验证；如果尚未完成就如实记录，下一次从这里续上。</li></ul>
+<div class="note">进度记录：上一节图解阅读和经纠错的 SQL、删除方法草稿已完成；独立实现整个功能尚未证明。本节资料已准备，学习和验证待开始。日期是安排，不能用“网页早已能用”代替当天学习。</div>
+<p>建议以后减少每天新增术语，固定用一个任务例子贯穿全链。框架图每天保留一张，并突出当天变化，不每天重讲整本资料。统一交付、构建与演示仍按月底目标保留。</p>
+</section>
+<footer>10月15日异常处理课 · 图解依据当前项目整理 · 图为教学示意，非页面截图 · 先读地图，再跟写代码</footer>
+</main></body></html>

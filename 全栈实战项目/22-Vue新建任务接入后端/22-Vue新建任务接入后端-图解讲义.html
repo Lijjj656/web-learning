@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>10月17日｜Vue新建任务接入后端</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#edf2f7;color:#24364d;font:17px/1.85 "Microsoft YaHei",sans-serif}main{max-width:1080px;margin:auto;padding:24px 18px 50px}header,section{background:#fff;border:1px solid #d7e1ec;border-radius:12px;padding:28px 36px;margin:18px 0}header{border-top:5px solid #3567ac}h1{font-size:31px;line-height:1.5;color:#17345c}h2{font-size:24px;color:#17345c;margin:0 0 16px}h3{font-size:19px;color:#2d527e;margin:22px 0 8px}.caption{color:#5d6e82;font-size:14px}.note{background:#edf4fe;border-left:4px solid #3567ac;padding:13px 18px;margin:16px 0}code{font-family:Consolas,"Microsoft YaHei",monospace;background:#eef2f7;padding:2px 5px;overflow-wrap:anywhere}pre{background:#f3f6fa;border:1px solid #d7e1ec;padding:15px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.7}.diagram{display:block;width:100%;height:auto;margin:18px 0}table{width:100%;border-collapse:collapse;font-size:15px}th,td{text-align:left;vertical-align:top;padding:10px;border-bottom:1px solid #d7e1ec}th{background:#eef4fb;color:#284e7a}li{margin:6px 0}details{border:1px solid #d7e1ec;padding:8px 13px;margin:12px 0}summary{cursor:pointer;color:#245eaa}@media(max-width:700px){header,section{padding:22px 17px}h1{font-size:25px}}@media print{@page{size:A4;margin:15mm}body{background:white;font-size:10.5pt;line-height:1.6}main{padding:0;max-width:none}header,section{border:0;border-radius:0;padding:0;margin:0 0 16px}section{break-before:page}pre{font-size:9pt}.diagram{break-inside:avoid}details:not([open])>*:not(summary){display:block!important}}
+</style></head><body><main>
+<header><p class="caption">2026-10-17 · 第22节 · 学习任务管理系统 · 图文与代码练习</p><h1>点击“创建”后，任务怎样进入数据库？<br>把 Vue 新建任务接上后端</h1><p>上一节理解了页面打开时，Vue 通过 <code>GET /api/tasks</code> 读取数据库。今天反过来追踪用户填写弹窗并点击创建后发生的事情：表单数据变成 JSON，请求带着 JWT 到达后端，后端验证并插入 MySQL，成功后前端重新读取列表。</p><div class="note"><strong>今天的目标：</strong>看懂并能跟写“表单 → POST → Controller → Service → Mapper/MyBatis → MySQL → 刷新列表”这一条链。浏览器里能创建任务只是结果，真正要会解释数据经过了哪些层。</div><p>先看第 1～3 节地图，再看第 4 节真实代码。第 5 节先在草稿中跟写，第 6 节做一次安全验证。今天不进入编辑、删除和统计的新功能。</p></header>
+<section><h2>1. 先看整体：一次新建任务的完整旅程</h2><svg class="diagram" viewBox="0 0 1000 650" role="img" aria-label="新建任务流程图"><rect width="1000" height="650" fill="#f6f9fc"/><g font-family="Microsoft YaHei" fill="#24364d" font-size="23"><rect x="55" y="35" width="890" height="75" rx="12" fill="#fff" stroke="#b9cde2" stroke-width="2"/><text x="80" y="68">① 弹窗中的 newTask</text><text x="80" y="97" font-size="18">title、category、priority、status</text><path d="M500 115v38" stroke="#56708f" stroke-width="3" marker-end="url(#a)"/><rect x="55" y="160" width="890" height="88" rx="12" fill="#edf4fe" stroke="#b9cde2" stroke-width="2"/><text x="80" y="197">② createTask 校验并发送 POST /api/tasks</text><text x="80" y="228" font-size="18">JSON body + Authorization: Bearer token</text><path d="M500 253v38" stroke="#56708f" stroke-width="3" marker-end="url(#a)"/><rect x="55" y="300" width="890" height="92" rx="12" fill="#fff" stroke="#b9cde2" stroke-width="2"/><text x="80" y="337">③ Controller → Service</text><text x="80" y="368" font-size="18">@Valid 检查输入；JWT 决定 userId</text><path d="M500 397v38" stroke="#56708f" stroke-width="3" marker-end="url(#a)"/><rect x="55" y="444" width="890" height="85" rx="12" fill="#eaf4ee" stroke="#b9cde2" stroke-width="2"/><text x="80" y="480">④ Mapper / MyBatis → MySQL</text><text x="80" y="509" font-size="18">INSERT 写入 user_id 和任务字段</text><path d="M500 534v38" stroke="#56708f" stroke-width="3" marker-end="url(#a)"/><rect x="55" y="580" width="890" height="45" rx="12" fill="#fff" stroke="#b9cde2" stroke-width="2"/><text x="80" y="608" font-size="18">⑤ 201 Created → loadTaskData() → 表格出现新任务</text></g><defs><marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#56708f"/></marker></defs></svg><p class="caption">图 1：前端提交的是任务内容，后端从 token 取得归属用户；客户端不提交也不能决定 user_id。</p><p>可以把它和昨天的查询对照：查询是 <code>GET</code> 把数据库数据拿到页面；今天是 <code>POST</code> 把页面填写的数据送到数据库。</p></section>
+<section><h2>2. 弹窗里的数据到底是什么？</h2><pre><code>const newTask = ref({
+  title: "",
+  category: "Web",
+  priority: "普通",
+  status: "未开始",
+});</code></pre><p>这是 Vue 的表单状态。输入框用 <code>v-model="newTask.title"</code> 双向绑定，所以用户输入文字时，<code>newTask.title</code> 同步变化。下拉框和单选框同理。</p><table><thead><tr><th>字段</th><th>页面中的来源</th><th>后端用途</th></tr></thead><tbody><tr><td>title</td><td>输入框</td><td>任务名称，不能空白，最多 200 字</td></tr><tr><td>category</td><td>分类下拉框</td><td>只能是 Web、Java、AI</td></tr><tr><td>priority</td><td>优先级单选框</td><td>只能是普通、高</td></tr><tr><td>status</td><td>新建时默认未开始</td><td>只能是未开始、进行中、已完成</td></tr><tr><td>user_id</td><td>页面不提供输入</td><td>后端从已验证 JWT 得到</td></tr></tbody></table><div class="note">页面的 <code>newTask</code> 只是尚未提交的内存对象；调用 API 成功并写入 MySQL 后，才成为持久记录。不要看到对象里没有 <code>user_id</code> 就认为后端不知道用户是谁。</div></section>
+<section><h2>3. 为什么需要前后端两次校验？</h2><p>当前页面在 <code>createTask()</code> 开始处检查空标题，是为了让用户马上得到反馈、避免无意义请求：</p><pre><code>if (!newTask.value.title.trim()) {
+  ElMessage.warning("请输入任务名称");
+  return;
+}</code></pre><p>但用户可以绕过页面，直接用 PowerShell 或其他程序请求接口。因此后端的 <code>TaskRequest</code> 仍有 <code>@NotBlank</code>、<code>@Size</code> 和 <code>@Pattern</code>，Controller 的 <code>@Valid</code> 会触发检查。</p><table><thead><tr><th>校验位置</th><th>作用</th><th>失败时</th></tr></thead><tbody><tr><td>Vue createTask</td><td>快速提示用户，减少错误请求</td><td>不发送 POST</td></tr><tr><td>Spring Boot TaskRequest + @Valid</td><td>保护接口，不信任客户端</td><td>返回 400，数据库不新增</td></tr><tr><td>MySQL 约束与事务</td><td>保存层最后一道保护</td><td>写入失败，由后端处理错误</td></tr></tbody></table><p>所以今天验证空标题时，Network 没有 POST，只证明前端拦截；它不能代替后端 400 的接口验证。</p></section>
+<section><h2>4. 沿真实代码追踪“创建”分支</h2><h3>4.1 createTask：区分新建和编辑</h3><pre><code>async function createTask() {
+  if (taskBusy.value) return;
+  if (!newTask.value.title.trim()) {
+    ElMessage.warning("请输入任务名称");
+    return;
+  }
+  taskBusy.value = true;
+  const editing = editingTaskId.value !== null;
+  try {
+    await apiRequest(
+      editing ? `/api/tasks/${editingTaskId.value}` : "/api/tasks",
+      {
+        method: editing ? "PUT" : "POST",
+        body: JSON.stringify({
+          ...newTask.value,
+          title: newTask.value.title.trim(),
+        }),
+      },
+    );
+    dialogVisible.value = false;
+    await loadTaskData();
+    ElMessage.success(editing ? "任务修改成功" : "任务创建成功");
+  } catch (error) {
+    ElMessage.error(error.message);
+  } finally {
+    taskBusy.value = false;
+  }
+}</code></pre><p>今天只看 <code>editingTaskId.value === null</code> 的新建分支：地址是 <code>/api/tasks</code>，方法是 <code>POST</code>。请求成功后先关闭弹窗，再重新加载任务和统计；最后才显示成功提示。</p><h3>4.2 apiRequest：加上 token 和 JSON 类型</h3><pre><code>response = await fetch(path, {
+  ...options,
+  headers: {
+    ...(options.body ? { "Content-Type": "application/json" } : {}),
+    Authorization: `Bearer ${token.value}`,
+    ...(options.headers || {}),
+  },
+});</code></pre><p>这里没有把 <code>user_id</code> 放进 body。token 由后端验证，决定当前用户。</p><h3>4.3 Controller 和 Service</h3><pre><code>@PostMapping
+@ResponseStatus(HttpStatus.CREATED)
+public TaskResponse create(
+    @Valid @RequestBody TaskRequest request,
+    @RequestHeader(value = "Authorization", required = false)
+    String authorization) {
+  return service.create(request, authorization);
+}</code></pre><pre><code>public TaskResponse create(TaskRequest request, String authorization) {
+    Long userId = currentUserId(authorization);
+    Task task = new Task();
+    task.setUserId(userId);
+    task.setTitle(request.title().trim());
+    task.setCategory(request.category().trim());
+    task.setPriority(request.priority().trim());
+    task.setStatus(request.status().trim());
+    mapper.insert(task);
+    return TaskResponse.from(requireOwned(task.getId(), userId));
+}</code></pre><p>Service 做了两件关键事：把 token 转成 userId，把请求字段复制到实体。它不接受客户端提交的归属用户。</p><h3>4.4 MyBatis INSERT</h3><pre><code>&lt;insert id="insert" useGeneratedKeys="true" keyProperty="id"&gt;
+  INSERT INTO tasks (user_id, title, category, priority, status)
+  VALUES (#{userId}, #{title}, #{category}, #{priority}, #{status})
+&lt;/insert&gt;</code></pre><p><code>#{...}</code> 取 Java 对象的属性值，MyBatis 绑定参数后执行 SQL。数据库生成的 id 会回填到 <code>task.id</code>，所以 Service 能再查询并返回完整任务。</p></section>
+<section><h2>5. 今天的跟写：先写最小创建流程</h2><p>在草稿中写下面三段，不要一开始凭记忆写整个组件。每写一段，说明它解决什么问题。</p><h3>A. 前端请求对象</h3><pre><code>const body = {
+  title: newTask.value.title.trim(),
+  category: newTask.value.category,
+  priority: newTask.value.priority,
+  status: "未开始",
+};</code></pre><h3>B. 发送 POST</h3><pre><code>await apiRequest("/api/tasks", {
+  method: "POST",
+  body: JSON.stringify(body),
+});</code></pre><h3>C. 后端写入对象</h3><pre><code>Long userId = currentUserId(authorization);
+Task task = new Task();
+task.setUserId(userId);
+task.setTitle(request.title().trim());
+mapper.insert(task);</code></pre><p>跟写时先别追求完整。能说清“body 是请求内容、token 是身份、userId 由后端决定、mapper.insert 执行 INSERT”就达到本段目标。</p><h3>相近小练习</h3><p>在草稿中写一个 <code>buildCreateBody(title)</code>，传入标题，返回包含 <code>title</code>、<code>category: "Web"</code>、<code>priority: "普通"</code>、<code>status: "未开始"</code> 的对象。参考答案：</p><details><summary>打开参考答案</summary><pre><code>function buildCreateBody(title) {
+  return {
+    title: title.trim(),
+    category: "Web",
+    priority: "普通",
+    status: "未开始",
+  };
+}</code></pre></details><p>这只是请求数据构造练习，不要把它额外加入正式项目。正式项目已有弹窗状态和接口调用。</p></section>
+<section><h2>6. 实操验证：一条任务从页面到数据库</h2><h3>检查一：Network 看到 POST</h3><p>打开任务页面和 Network，创建一个标题明显的测试任务，例如“10月17创建链路测试”。筛选 <code>tasks</code>，应出现：</p><pre><code>Request Method: POST
+Request URL: /api/tasks
+Status Code: 201 Created
+Request Payload: title、category、priority、status
+Request Headers: Authorization: Bearer ...</code></pre><p>不要把 token 截图或发给别人；只检查它存在。</p><h3>检查二：Response 和页面</h3><p>POST 的 Response 应返回新任务对象，页面弹窗关闭并出现“任务创建成功”，随后列表中出现任务。刷新页面后它仍在，说明后端重新从 MySQL 查询。</p><h3>检查三：数据库</h3><p>用 MySQL 查看自己账号的任务记录，确认标题、分类、优先级、状态和页面一致。不要直接手动修改 <code>user_id</code> 来模拟登录。</p><h3>检查四：错误路径</h3><p>把标题清空后点击创建：页面提示且 Network 没有 POST。若用接口提交空标题，后端应返回 400；两次检查验证的是不同层。</p><div class="note">如果 POST 返回 401，先检查登录会话；返回 400，查看请求字段；返回 500，查看 Spring Boot 窗口。不要只看到网页没有新行就断定数据库写入失败。</div></section>
+<section><h2>7. 复盘与完成标准</h2><p>尝试不用看讲义回答：</p><ul><li>为什么新建任务请求里不包含 <code>user_id</code>？</li><li>为什么创建成功后还要调用 <code>loadTaskData()</code>，直接把表格前端数组加一项不行吗？</li><li>前端空标题拦截和后端 <code>@Valid</code> 各自防什么？</li><li>为什么创建接口返回 201，而删除接口返回 204？</li></ul><table><thead><tr><th>层级</th><th>完成证据</th></tr></thead><tbody><tr><td>读懂</td><td>能画出弹窗 → POST → Controller → Service → INSERT → 201 → 刷新列表</td></tr><tr><td>跟写</td><td>能写出 body、POST 请求和设置 userId 的三段代码</td></tr><tr><td>会用</td><td>能独立构造一个合法任务请求，并用 Network、页面刷新和数据库三处互相验证</td></tr></tbody></table><p class="note"><strong>今天的定位：</strong>后端创建接口已经存在，今天学习的是 Vue 如何正确调用它并确认数据真正落库。编辑、删除、统计留在对应课程，不用今天全部混在一起。</p></section>
+<p class="caption" style="text-align:center">10月17日 · 一个功能贯穿表单、请求、身份、SQL、响应和验证</p>
+</main></body></html>

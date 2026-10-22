@@ -1,0 +1,180 @@
+/* 1. 全局基础：让元素的宽高计算更直观，并去掉浏览器默认外边距。 */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: #1d2939;
+  background: #f6f8fb;
+  font-family: "Microsoft YaHei", Arial, sans-serif;
+}
+
+/* 2. 页面布局：桌面端左右两栏，各占一半。 */
+.login-page {
+    display: flex;
+    min-height: 100vh;
+    
+}
+
+.brand-panel,
+.form-panel {
+  width: 50%;
+  
+}
+
+.brand-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 32px;
+  color: #ffffff;
+  background: #144ecd;
+}
+
+.eyebrow,
+.welcome {
+  margin: 0 0 16px;
+  color: #76e0c7;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.brand-panel h1 {
+  margin: 0;
+  font-size: 42px;
+  line-height: 1.25;
+}
+
+.brand-description {
+  max-width: 460px;
+  margin: 48px 0;
+  color: #d4f5eb;
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+.feature-list {
+  margin: 0;
+  padding-left: 22px;
+  color: #e8faf4;
+  line-height: 2;
+}
+
+/* 3. 表单布局：让内容在右侧面板里垂直、水平居中。 */
+.form-panel {
+    display: flex;
+    align-items: center;
+   justify-content: center;
+    padding: 48px 24px;
+}
+
+.form-content {
+  width: 100%;
+  max-width: 420px;
+}
+
+.form-content h2 {
+  margin: 0;
+  font-size: 30px;
+}
+
+.hint {
+  margin: 12px 0 32px;
+  color: #667085;
+}
+
+.field {
+  margin-bottom: 20px;
+}
+
+.field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+label {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+a {
+  color: #0c6b68;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+input[type="email"],
+input[type="password"] {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #1d2939;
+  background: #ffffff;
+  font: inherit;
+}
+
+input[type="email"]:focus,
+input[type="password"]:focus {
+  border-color: #144ecd;
+  outline: 3px solid #c5eee3;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 24px;
+  color: #475467;
+  font-weight: 400;
+}
+
+button {
+  width: 100%;
+  padding: 13px;
+  border: 0;
+  border-radius: 6px;
+  color: #ffffff;
+  background: #144ecd;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+button:hover {
+  background: #0d625f;
+}
+
+.register-link {
+  margin: 24px 0 0;
+  color: #667085;
+  text-align: center;
+}
+
+.register-link a {
+  margin-left: 4px;
+}
+
+/* 4. 响应式：屏幕窄于 760px 时，两栏改为上下排列。 */
+@media (max-width: 760px) {
+  .login-page {
+    flex-direction: column;
+  }
+
+  .brand-panel,
+  .form-panel {
+    width: 100%;
+  }
+
+  .brand-panel {
+    padding: 40px 24px;
+  }
+
+  .brand-panel h1 {
+    font-size: 32px;
+  }
+}

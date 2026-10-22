@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>用户信息查询</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header>
+        <p class="eyebrow">FETCH API PRACTICE</p>
+        <h1>用户信息查询</h1>
+        <p class="intro">输入 1 到 10 的用户编号，从公开 API 获取用户资料。</p>
+      </header>
+
+      <section class="search-panel" aria-labelledby="search-title">
+        <h2 id="search-title">查询用户</h2>
+        <form id="search-form">
+          <label for="user-id">用户编号</label>
+          <div class="search-row">
+            <input id="user-id" type="number" min="1" max="10" value="1" required />
+            <button type="submit">查询</button>
+          </div>
+        </form>
+        <p id="status" class="status" aria-live="polite">请输入编号后查询。</p>
+        <article id="user-card" class="user-card" hidden></article>
+      </section>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>

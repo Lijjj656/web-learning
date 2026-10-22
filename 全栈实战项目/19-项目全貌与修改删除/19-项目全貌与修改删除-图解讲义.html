@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第19节｜先看整个项目，再理解修改和删除</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#eef2f6;color:#243247;font:17px/1.85 "Microsoft YaHei","PingFang SC",sans-serif}main{max-width:1140px;margin:30px auto;padding:0 22px 50px}header,section{background:#fff;padding:36px 42px;margin:22px 0;border:1px solid #dce4ed;border-radius:16px}header{border-top:6px solid #3566b8}h1{font-size:32px;line-height:1.45;margin:12px 0 18px;color:#172b4d}h2{font-size:25px;line-height:1.5;color:#172b4d;margin:0 0 20px}h3{font-size:20px;margin:26px 0 10px;color:#244d83}p{margin:12px 0}.eyebrow{font-size:15px;color:#536981}.lead{font-size:19px}.callout{background:#edf4ff;border-left:4px solid #3566b8;padding:15px 20px;margin:20px 0}.soft{background:#f6f8fb;padding:16px 22px;border-radius:8px}.caption{font-size:15px;color:#52657b;margin:10px 0 20px}nav{display:flex;gap:10px 18px;flex-wrap:wrap}a{color:#245a9b;text-decoration-thickness:1px;text-underline-offset:3px}code{font-family:Consolas,"Microsoft YaHei",monospace;background:#edf1f7;padding:2px 5px;border-radius:4px;overflow-wrap:anywhere}pre{background:#f2f5f9;border:1px solid #dce4ed;padding:18px 20px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;font-size:15px}pre code{background:none;padding:0}.table-wrap{overflow:auto}table{border-collapse:collapse;width:100%;margin:14px 0;font-size:16px}th,td{padding:12px 14px;text-align:left;vertical-align:top;border-bottom:1px solid #dce4ed}th{background:#edf3fa;color:#244d83}ul,ol{padding-left:25px}li{margin:8px 0}.diagram{overflow-x:auto;margin:22px 0 10px}.diagram svg{display:block;width:100%;min-width:710px;height:auto;background:#f8fafc;border-radius:8px}.diagram text{font-family:"Microsoft YaHei",sans-serif;fill:#243247;font-size:17px}.diagram .small{font-size:14px;fill:#536981}.diagram .node{fill:#fff;stroke:#ccd8e6;stroke-width:1.5}.diagram .emphasis{fill:#e8f1ff;stroke:#3566b8;stroke-width:1.5}.diagram .link{stroke:#526c8b;stroke-width:2;fill:none}.badge{display:inline-block;background:#e8f1ff;color:#244d83;border-radius:6px;padding:3px 10px;font-size:14px}footer{color:#536981;font-size:15px;text-align:center}.columns{display:grid;grid-template-columns:1fr 1fr;gap:18px}.columns .soft{margin:0}.path{font-size:14px;overflow-wrap:anywhere}
+@media(max-width:760px){main{padding:0 12px}header,section{padding:24px 20px}h1{font-size:26px}h2{font-size:22px}.columns{grid-template-columns:1fr}}
+@media print{@page{size:A4;margin:15mm}body{background:#fff;font-size:11pt;line-height:1.7}main{max-width:none;margin:0;padding:0}header,section{border:0;border-radius:0;margin:0;padding:0 0 14px;break-before:page}header{break-before:auto}h1{font-size:24pt}h2{font-size:18pt}h3{font-size:13pt}pre{font-size:9pt;padding:10px;break-inside:avoid}table{font-size:10pt}tr{break-inside:avoid}th,td{padding:7px 9px}.diagram{overflow:visible;break-inside:avoid}.diagram svg{min-width:0}.caption,.path{font-size:9pt}.callout,.soft{break-inside:avoid}nav{display:none}a{color:#243247}footer{font-size:9pt}.lead{font-size:12pt}.eyebrow,.badge{font-size:10pt}}
+</style>
+</head>
+<body><main>
+<header>
+<div class="eyebrow">2026-10-14 · 第19节 · 学习任务管理系统 · 图解讲义</div>
+<h1>先看整个项目，<br>再理解今天为什么写这些代码</h1>
+<p class="lead">我们正在做一个“登录后管理自己学习任务”的系统。你看到的网页、Java 代码和数据库，都是同一个任务流程的不同部分。</p>
+<div class="callout"><strong>今天的位置：</strong>你已能创建和查询任务。今天让已有任务可以修改、删除，并保证别人不能操作你的记录。先看全貌，再进入代码，最后亲手写一个小片段。</div>
+<p>阅读顺序：先读第 1～4 节建立地图，再读第 5 节追踪一个具体动作。理解动作后再读第 6～7 节代码。一次读到当前步骤即可，不要求背下整份文档。</p>
+<nav aria-label="讲义目录"><a href="#purpose">1 为什么做</a><a href="#architecture">2 系统地图</a><a href="#evolution">3 每节改变什么</a><a href="#today">4 今天的变化</a><a href="#journey">5 一次修改的旅程</a><a href="#code">6 代码位置</a><a href="#ownership">7 用户归属</a><a href="#practice">8 学习与练习</a><a href="#daily">9 以后怎么学</a></nav>
+<p class="caption">图片均为教学示意图，说明真实项目的关系；不是运行页面的截图。文件可离线阅读，也可在浏览器按 Ctrl+P 打印或另存 PDF。</p>
+</header>
+
+<section id="purpose">
+<h2>1. 我们为什么要写这个系统？</h2>
+<p>先想一个实际场景：你有“复习 Java”“练习 Vue”两条任务。今天记录进度，明天打开电脑，还想看到这些任务；换一个账号，则应该看到另一个人的学习记录。</p>
+<p>一个完整任务至少有三个阶段：<strong>记录下来 → 跟踪进度 → 查看结果</strong>。因此我们需要创建、查询、修改、删除和统计。这些操作统称增删改查，常写作 CRUD。</p>
+<div class="table-wrap"><table><thead><tr><th>你想做什么</th><th>网页怎么做</th><th>后端怎么接收</th><th>数据库做什么</th></tr></thead><tbody>
+<tr><td>查看自己的任务</td><td>打开任务管理页</td><td>GET /api/tasks</td><td>SELECT：读取记录</td></tr>
+<tr><td>添加学习计划</td><td>新建弹窗填写并创建</td><td>POST /api/tasks</td><td>INSERT：新增一行</td></tr>
+<tr><td>修改内容或进度</td><td>编辑弹窗或状态下拉框</td><td>PUT /api/tasks/任务编号</td><td>UPDATE：改变已有行</td></tr>
+<tr><td>移除不需要的计划</td><td>删除并确认</td><td>DELETE /api/tasks/任务编号</td><td>DELETE：删除指定行</td></tr>
+<tr><td>查看完成情况</td><td>打开学习统计</td><td>GET /api/tasks/stats</td><td>COUNT、SUM：按当前用户计算数量</td></tr>
+</tbody></table></div>
+<h3>为什么只改网页数组不够？</h3>
+<p>网页中的 <code>tasks</code> 数组可以临时显示任务。但刷新网页会重新运行页面代码，临时数组不能代替持久保存。MySQL 负责长期保存，网页每次加载时从后端重新查询记录。</p>
+<p>同样，只在网页上把状态显示为“已完成”也不够：数据库不变，重新读取时仍是“未开始”。今天写 UPDATE，就是让这次进度变化真正保存下来。</p>
+<div class="callout">每一段代码都服务于一个用户动作。学 SQL 时先想“我希望哪条记录发生什么变化”，再决定使用 SELECT、INSERT、UPDATE 还是 DELETE。</div>
+</section>
+
+<section id="architecture">
+<h2>2. 整个系统由什么组成？</h2>
+<p>现在前端和后端都在你的电脑上，数据库也在本机。“前端”和“后端”表示职责不同，并不要求两台电脑。</p>
+<div class="diagram">
+<svg viewBox="0 0 1060 510" role="img" aria-labelledby="architecture-title architecture-desc">
+<title id="architecture-title">学习任务管理系统整体结构</title><desc id="architecture-desc">浏览器中的 Vue 通过 HTTP 请求访问 Spring Boot。Controller 接收请求，Service 处理业务与验证身份，Mapper 和 MyBatis 执行 SQL 操作 MySQL。结果经后端返回网页。JWT 用于确认用户身份。</desc>
+<defs><marker id="arrow-a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#526c8b"/></marker></defs>
+<rect x="25" y="35" width="200" height="300" rx="14" class="node"/><text x="125" y="76" text-anchor="middle">浏览器里的 Vue</text><text x="125" y="108" text-anchor="middle" class="small">你看到和操作的页面</text><text x="48" y="162">登录 / 注册</text><text x="48" y="201">任务表格 / 弹窗</text><text x="48" y="240">学习统计 / 设置</text><text x="48" y="292" class="small">开发地址：5173</text>
+<rect x="325" y="35" width="450" height="300" rx="14" class="node"/><text x="550" y="76" text-anchor="middle">Spring Boot 后端 · 8084</text>
+<rect x="352" y="107" width="395" height="56" rx="7" class="emphasis"/><text x="550" y="141" text-anchor="middle">Controller：接请求、返回响应</text>
+<rect x="352" y="183" width="395" height="56" rx="7" class="emphasis"/><text x="550" y="217" text-anchor="middle">Service：确认用户、安排处理步骤</text>
+<rect x="352" y="259" width="395" height="56" rx="7" class="emphasis"/><text x="550" y="293" text-anchor="middle">Mapper + MyBatis：绑定参数、执行 SQL</text>
+<path d="M550 163 V181 M550 239 V257" class="link" marker-end="url(#arrow-a)"/>
+<path d="M225 135 H348" class="link" marker-end="url(#arrow-a)"/><text x="276" y="115" text-anchor="middle" class="small">请求 + token</text>
+<rect x="855" y="35" width="180" height="300" rx="14" class="node"/><text x="945" y="76" text-anchor="middle">MySQL · 3306</text><text x="945" y="112" text-anchor="middle" class="small">learning_app</text><text x="879" y="176">users：用户</text><text x="879" y="226">tasks：任务</text><text x="879" y="291" class="small">持久保存记录</text>
+<path d="M747 288 H851" class="link" marker-end="url(#arrow-a)"/><text x="800" y="266" text-anchor="middle" class="small">SQL</text>
+<path d="M945 335 V374 H125 V337" class="link" marker-end="url(#arrow-a)"/><text x="530" y="366" text-anchor="middle" class="small">返回路径：数据库结果 → 后端处理并转成 JSON → Vue 更新页面</text>
+<rect x="25" y="406" width="1010" height="76" rx="10" fill="#edf3fa"/><text x="45" y="437">JWT 是登录凭证；MyBatis 是 Java 与 SQL 之间的工具；MySQL 是实际保存记录的数据库。</text><text x="45" y="465" class="small">开发时，浏览器调用前端的 /api 地址，Vite 代理到后端 8084。生产同源部署是后续课程。</text>
+</svg></div>
+<p class="caption">图 1：项目全貌。只有一条业务链，不是五个互不相关的小项目。</p>
+<div class="table-wrap"><table><thead><tr><th>名称</th><th>在本项目里的职责</th><th>具体文件</th></tr></thead><tbody>
+<tr><td>Vue + Element Plus</td><td>页面数据、按钮事件、表格与弹窗</td><td>前端 src/App.vue</td></tr>
+<tr><td>Controller</td><td>识别接口地址、接收参数、返回结果</td><td>TaskController.java</td></tr>
+<tr><td>Service</td><td>从 token 确认用户，组织任务操作</td><td>TaskService.java</td></tr>
+<tr><td>Mapper + MyBatis</td><td>把 Java 方法和 XML SQL 对应起来</td><td>TaskMapper.java、TaskMapper.xml</td></tr>
+<tr><td>MySQL</td><td>保存账号与任务，执行查询和修改</td><td>learning_app 中的 users、tasks 表</td></tr>
+</tbody></table></div>
+<p>不要把 Spring Boot、Controller 和 Service 看成三种互相独立的后端。Controller、Service 都是这个 Spring Boot 项目里的 Java 类。</p>
+</section>
+
+<section id="evolution">
+<h2>3. 前面的课程怎样组成现在的网页？</h2>
+<p>下面按桌面 Demo 名称和我们已完成的联调整理学习路线。它说明每个技术解决什么问题，不代表每个旧 Demo 都已经合并进当前项目。</p>
+<div class="table-wrap"><table><thead><tr><th>学习阶段</th><th>新增的能力</th><th>你会看到什么变化</th></tr></thead><tbody>
+<tr><td>01 HTML、02 CSS</td><td>定义页面内容、布局与样式</td><td>能显示标题、输入框、按钮；页面先有外形</td></tr>
+<tr><td>03 JavaScript、04 Fetch</td><td>处理点击、改变数组、发送网络请求</td><td>按钮开始有动作；能从接口获取内容</td></tr>
+<tr><td>05 Vue、06 Router、07 Pinia、08 Axios</td><td>组件与响应式、路由、共享状态、请求工具</td><td>数据变化能更新页面；学习了多种组织代码方式</td></tr>
+<tr><td>09 Element Plus</td><td>使用表格、弹窗、表单、消息组件</td><td>形成当前“学习空间”的界面基础</td></tr>
+<tr><td>10 Spring Boot</td><td>用 Java 提供接口，先练内存 CRUD</td><td>页面可以请求自己的后端；内存保存仍受进程生命周期影响</td></tr>
+<tr><td>11 MySQL、12 JPA、13 MyBatis</td><td>建立数据库、学习两种数据库访问方式</td><td>记录可以长期保存；当前项目采用 MyBatis</td></tr>
+<tr><td>14 JWT、前后端登录联调</td><td>注册、登录、token、当前用户</td><td>先登录，再进入任务管理；账号能够区分</td></tr>
+<tr><td>17～18 任务持久化与新增</td><td>任务表、查询、创建、输入校验</td><td>任务不再只是固定数组，刷新和重新登录能保留</td></tr>
+<tr><td>今天：修改、删除与归属</td><td>UPDATE、DELETE、id 与 user_id 条件</td><td>进度和编辑结果能保存；只允许操作自己的记录</td></tr>
+</tbody></table></div>
+<div class="callout"><strong>页面外观相似，不代表没有变化。</strong>从前端数组改成 MySQL 保存，表格可能完全一样，但刷新后的行为、账号之间的数据归属、接口失败时的提示都变了。</div>
+<h3>当前项目的实际状态</h3>
+<p>我们已经提前写好了任务增删改查、统计和筛选，页面基本操作已由你验证。今天主要是把已有功能的设计和书写过程补清楚。网页已经能用，不能作为“今天的代码已经学会”的依据。</p>
+<p>当前使用原生 <code>fetch</code> 请求，三个菜单主要通过 <code>activePage</code> 切换内容；Vue Router 正式接入、组件拆分和生产部署是后续任务。之前学过 Router、Pinia、Axios，并不代表当前项目已经使用了它们。</p>
+</section>
+
+<section id="today">
+<h2>4. 今天要让网页和数据发生什么变化？</h2>
+<p>用同一条任务串起来。下面编号仅为示例，不是让你直接修改数据库中的任务 12。</p>
+<div class="diagram"><svg viewBox="0 0 1060 345" role="img" aria-labelledby="lifecycle-title lifecycle-desc">
+<title id="lifecycle-title">同一条任务从创建到删除的变化</title><desc id="lifecycle-desc">创建新增一条未开始的任务；查询显示任务；修改保留编号并把状态变成已完成；删除移除记录。修改前后任务总数不变，已完成数增加，删除后总数减少。</desc>
+<defs><marker id="arrow-b" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#526c8b"/></marker></defs>
+<rect x="20" y="40" width="235" height="186" rx="12" class="node"/><text x="40" y="76">创建 · POST / INSERT</text><text x="40" y="116">任务 12：复习 Java</text><text x="40" y="149">归属：用户 3</text><text x="40" y="182">状态：未开始</text><text x="40" y="211" class="small">数据库新增一行</text>
+<rect x="287" y="40" width="220" height="186" rx="12" class="node"/><text x="307" y="76">查询 · GET / SELECT</text><text x="307" y="116">表格显示任务 12</text><text x="307" y="149">状态：未开始</text><text x="307" y="182">没有修改原记录</text><text x="307" y="211" class="small">把已有数据取出来</text>
+<rect x="539" y="40" width="245" height="186" rx="12" class="emphasis"/><text x="559" y="76">修改 · PUT / UPDATE</text><text x="559" y="116">任务 12：复习 Java</text><text x="559" y="149">归属：仍是用户 3</text><text x="559" y="182">状态：已完成</text><text x="559" y="211" class="small">同一行改变，任务总数不变</text>
+<rect x="816" y="40" width="225" height="186" rx="12" class="emphasis"/><text x="836" y="76">删除 · DELETE</text><text x="836" y="116">任务 12 被移除</text><text x="836" y="149">表格不再显示</text><text x="836" y="182">任务总数减少 1</text><text x="836" y="211" class="small">本项目是直接删除记录</text>
+<path d="M255 135 H283 M507 135 H535 M784 135 H812" class="link" marker-end="url(#arrow-b)"/>
+<text x="25" y="278">今天聚焦右侧两步：UPDATE 改变已有任务，DELETE 移除指定任务。</text><text x="25" y="309" class="small">每一步都先确认用户身份；后端拒绝操作他人任务。这里显示的是教学流程，不是实际按钮。</text>
+</svg></div>
+<p class="caption">图 2：内容会改变，任务身份与用户归属在编辑时保持不变。</p>
+<div class="columns"><div class="soft"><h3>修改的验收</h3><p>编辑名称、分类或优先级；改变状态；刷新后仍保留。任务总数不变，完成数量随状态变化。</p></div><div class="soft"><h3>删除的验收</h3><p>确认删除后记录消失，刷新不会回来，统计同步减少。别人不能靠改任务编号删掉你的记录。</p></div></div>
+<p>取消删除弹窗时，没有发送删除请求。确认以后，后端成功删除，页面才显示成功。本项目直接移除数据库记录，没有回收站功能。</p>
+</section>
+
+<section id="journey">
+<h2>5. 从“改为已完成”开始，走完一次请求</h2>
+<p>这里把任务 12 改为“已完成”，假设登录用户编号是 3。与其记五个孤立文件，不如跟着这一个动作走。</p>
+<div class="diagram"><svg viewBox="0 0 1060 490" role="img" aria-labelledby="journey-title journey-desc">
+<title id="journey-title">修改任务的完整旅程</title><desc id="journey-desc">页面选择已完成，Vue 请求PUT tasks 12并带JSON及token。Controller读取编号、请求体和请求头，Service取得当前用户编号组装Task，Mapper执行带任务编号和用户编号条件的UPDATE，返回结果并更新页面统计。</desc>
+<defs><marker id="arrow-c" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#526c8b"/></marker></defs>
+<rect x="35" y="25" width="990" height="65" rx="8" class="node"/><text x="56" y="52">① 网页：你把任务状态选择为“已完成”</text><text x="56" y="77" class="small">Vue 表格中的 task.status 变化，触发 updateTask(task)</text>
+<rect x="35" y="111" width="990" height="65" rx="8" class="node"/><text x="56" y="138">② 请求：PUT /api/tasks/12，带 JSON 和 Authorization: Bearer token</text><text x="56" y="163" class="small">JSON 提供标题、分类、优先级和状态；地址中的 12 指定任务；token 用于验证身份</text>
+<rect x="35" y="197" width="990" height="65" rx="8" class="emphasis"/><text x="56" y="224">③ Controller 接收 → 校验请求内容 → Service 验证身份并组装 Task</text><text x="56" y="249" class="small">id = 12；userId = 3 来自 token；status = 已完成来自请求体</text>
+<rect x="35" y="283" width="990" height="65" rx="8" class="emphasis"/><text x="56" y="310">④ Mapper / MyBatis：执行 UPDATE，条件是 id = 12 AND user_id = 3</text><text x="56" y="335" class="small">MySQL 保存状态变化。没有找到可操作记录时，后端返回 404</text>
+<rect x="35" y="369" width="990" height="82" rx="8" class="node"/><text x="56" y="396">⑤ 响应：后端返回更新后的任务；Vue 处理结果、刷新统计并显示提示</text><text x="56" y="423" class="small">改状态时表格已经由 v-model 更新；失败会重新查询恢复显示。编辑弹窗保存后则重查列表和统计。</text><text x="56" y="445" class="small">刷新网页后再次 GET 查询，所以显示的是数据库保存的状态。</text>
+<path d="M530 90 V109 M530 176 V195 M530 262 V281 M530 348 V367" class="link" marker-end="url(#arrow-c)"/>
+</svg></div>
+<p class="caption">图 3：同一次请求贯穿所有层。你学的 SQL 位于第 ④ 步；setStatus 位于第 ③ 步。</p>
+<h3>为什么要传这些信息？</h3>
+<table><thead><tr><th>信息</th><th>解决的问题</th><th>从哪里得到</th></tr></thead><tbody><tr><td>任务编号 id</td><td>我要改哪条任务？</td><td>已查询到的任务对象，放入地址</td></tr><tr><td>新字段值</td><td>我要把它改成什么？</td><td>网页输入，放入 JSON 请求体</td></tr><tr><td>token</td><td>请求者是谁？</td><td>登录成功后保存的凭证，放入请求头</td></tr><tr><td>用户编号 userId</td><td>这条任务是否属于请求者？</td><td>后端验证 token 后取得，前端不能指定</td></tr></tbody></table>
+<p><code>JSON</code> 是请求和响应的数据格式；<code>TaskRequest</code> 是接收内容的 Java 对象；<code>Task</code> 是包含编号与归属、供数据库操作使用的对象。它们是同一段数据在不同步骤的表现形式。</p>
+</section>
+
+<section id="code">
+<h2>6. 今天的代码写在哪里，为什么这样写？</h2>
+<p>前端目录：<code>C:/Users/李佳恒/Desktop/09-ElementPlus-后台Demo</code>。后端目录：<code>C:/Users/李佳恒/Desktop/14-SpringBoot-JWT-Demo</code>。行号为 2026-10-14 当前文件位置，后续编辑可能变化。</p>
+<table><thead><tr><th>动作</th><th>前端 App.vue</th><th>Controller</th><th>Service</th><th>Mapper / XML</th></tr></thead><tbody><tr><td>编辑弹窗</td><td>203 打开；209 保存，编辑分支发 PUT</td><td>TaskController.java 28</td><td>TaskService.java 36</td><td>TaskMapper.java 13；XML 29</td></tr><tr><td>直接改状态</td><td>232 updateTask</td><td>同上：update</td><td>同上：update</td><td>同上：update</td></tr><tr><td>删除</td><td>255 removeTask</td><td>TaskController.java 34</td><td>TaskService.java 49</td><td>TaskMapper.java 14；XML 35</td></tr></tbody></table>
+<p>后端 Java 文件都在 <code>src/main/java/com/learning/jwtapi/</code>；XML 在 <code>src/main/resources/mapper/TaskMapper.xml</code>。在编辑器按 Ctrl+G 输入行号定位。讲义阅读时先看下面摘录，不需要来回打开五个窗口。</p>
+<h3>6.1 前端：把用户动作变成请求</h3>
+<pre><code>// 状态变化时的请求摘录
+await apiRequest(`/api/tasks/${task.id}`, {
+    method: "PUT",
+    body: JSON.stringify({
+        title: task.title,
+        category: task.category,
+        priority: task.priority,
+        status: task.status,
+    }),
+});</code></pre>
+<p>这里传完整可编辑字段，因为当前 PUT 接口会更新这些字段。只发送 status 的片段适合教学说明，不能直接替换正式请求；否则其他必填字段缺失会导致 400。请求头由 <code>apiRequest</code> 加入 token。</p>
+<h3>6.2 Controller：读取地址、内容和凭证</h3>
+<pre><code>@PutMapping("/{id}")
+public TaskResponse update(
+    @PathVariable Long id,
+    @Valid @RequestBody TaskRequest request,
+    @RequestHeader(value = "Authorization", required = false)
+    String authorization) {
+    return service.update(id, request, authorization);
+}</code></pre>
+<p><code>@PathVariable</code> 从地址取任务编号；<code>@RequestBody</code> 从 JSON 取新内容；<code>@Valid</code> 触发输入规则；<code>@RequestHeader</code> 取凭证。允许请求头为空是为了由 Service 统一返回 401，不代表允许匿名修改。</p>
+<h3>6.3 Service：确认用户，组装要修改的数据</h3>
+<pre><code>public TaskResponse update(Long id, TaskRequest request,
+                           String authorization) {
+    Long userId = currentUserId(authorization);
+    Task task = new Task();
+    task.setId(id);
+    task.setUserId(userId);
+    task.setTitle(request.title().trim());
+    task.setCategory(request.category().trim());
+    task.setPriority(request.priority().trim());
+    task.setStatus(request.status().trim());
+    if (mapper.update(task) == 0) throw notFound();
+    return TaskResponse.from(requireOwned(id, userId));
+}</code></pre>
+<p>你已经练过创建对象和 set 方法。修改比新增多了 <code>task.setId(id)</code>，因为新增由数据库生成编号，修改需要指定已有记录。<code>mapper.update</code> 返回受影响行数；本项目配置下，没有匹配到可修改任务时返回 0，Service 返回 404。更新后再查询并转换为给前端的响应对象。</p>
+<h3>6.4 Mapper 与 SQL：Java 方法对应数据库操作</h3>
+<pre><code>// TaskMapper.java
+int update(Task task);
+
+// TaskMapper.xml 对应的 SQL
+UPDATE tasks
+SET title = #{title}, category = #{category},
+    priority = #{priority}, status = #{status}
+WHERE id = #{id} AND user_id = #{userId}</code></pre>
+<p>MyBatis 根据 Mapper 命名空间和 XML 的 <code>id="update"</code> 找到 SQL，读取 Task 的属性并绑定参数。<code>#{...}</code> 是参数绑定占位符，不能去掉花括号当普通 SQL 名称使用。</p>
+<p>数据库中的 <code>user_id</code> 与 Java 属性 <code>userId</code> 名字不同，但表示同一个任务归属。SET 指定“改什么”，WHERE 指定“允许改哪条”。</p>
+</section>
+
+<section id="ownership">
+<h2>7. 为什么修改和删除都要检查归属？</h2>
+<p>前端表格只显示自己的任务，但请求地址可以被人为修改。服务器不能因为“按钮在网页里”就相信请求一定合法。</p>
+<div class="diagram"><svg viewBox="0 0 1060 285" role="img" aria-labelledby="owner-title owner-desc">
+<title id="owner-title">任务编号和用户编号同时检查</title><desc id="owner-desc">任务12属于用户3。用户3操作任务12时两个条件都匹配，可以修改或删除。用户8操作相同任务编号时归属条件不匹配，返回404，记录保持不变。</desc>
+<rect x="28" y="28" width="1004" height="63" rx="8" class="node"/><text x="54" y="67">数据库中的记录：id = 12，user_id = 3，title = 复习 Java</text>
+<rect x="28" y="117" width="489" height="132" rx="8" fill="#eaf4ee" stroke="#a5c4b0"/><text x="48" y="155">用户 3：WHERE id = 12 AND user_id = 3</text><text x="48" y="190">任务编号匹配 ＋ 归属匹配</text><text x="48" y="223">允许操作这条记录</text>
+<rect x="543" y="117" width="489" height="132" rx="8" fill="#fff0eb" stroke="#d9b7a9"/><text x="563" y="155">用户 8：WHERE id = 12 AND user_id = 8</text><text x="563" y="190">任务编号匹配，但归属不匹配</text><text x="563" y="223">返回 404，记录不改变</text>
+</svg></div>
+<p class="caption">图 4：任务编号确定目标，用户编号确定权限；AND 表示两个条件同时成立。</p>
+<h3>删除沿用相同的归属规则</h3>
+<pre><code>// Service：身份从 token 得到
+public void delete(Long id, String authorization) {
+    Long userId = currentUserId(authorization);
+    if (mapper.delete(id, userId) == 0) throw notFound();
+}
+
+// SQL：只删除属于当前用户的指定任务
+DELETE FROM tasks
+WHERE id = #{id} AND user_id = #{userId}</code></pre>
+<p>删除不需要新的 title 或 status，因此不必组装完整 TaskRequest。它只需要“删哪条”和“当前是谁”。前端取消确认时不发请求，确认后发送 DELETE，成功返回 204，没有 JSON 响应体。</p>
+<p>接口对“不存在的任务”和“属于别人的任务”统一返回 404，避免透露其他用户的任务是否存在。缺少或失效 token 则返回 401；这两个错误原因不同。</p>
+</section>
+
+<section id="practice">
+<h2>8. 今天怎样从看懂走到会写？</h2>
+<p>下面先提供完整例子，再安排相近练习。草稿片段不代表可以粘进正式类中直接编译，也不要把教学 SQL 直接对现有数据库执行。真正整合项目时，我会先说明类、方法、参数和文件位置。</p>
+<h3>第一步：自己描述要改变的记录</h3>
+<div class="soft">参考描述：“我要把自己的一条已有任务改成已完成。任务编号不变，所属用户不变，只改变状态。刷新后仍是已完成。”</div>
+<h3>第二步：跟写最小 SQL</h3>
+<pre><code>UPDATE tasks
+SET status = #{status}
+WHERE id = #{id} AND user_id = #{userId}</code></pre>
+<p>在草稿编辑器中自己输入。只关注三个意思：修改任务表、指定新状态、同时限制编号与归属。第一遍可以照写，不要求凭空记住标点。</p>
+<h3>第三步：写相近变化</h3>
+<p>把上面的“改状态”变成“改优先级”，保留归属条件。可以先参照示例，写完再展开参考答案：</p>
+<details><summary>参考答案：修改优先级</summary><pre><code>UPDATE tasks
+SET priority = #{priority}
+WHERE id = #{id} AND user_id = #{userId}</code></pre></details>
+<h3>第四步：把参数来源接到 Java</h3>
+<pre><code>// 仅为草稿：前面的 id、userId、request 已取得
+Task task = new Task();
+task.setId(id);
+task.setUserId(userId);
+task.setPriority(request.priority().trim());</code></pre>
+<p>这几句只准备对象，尚未保存；正式 Mapper 的 update 会读取所有可编辑字段，因此正式调用前需要补齐 title、category、priority、status。你写每一句时都能在图 3 中定位：目前处于 Service 组装对象步骤。</p>
+<h3>第五步：在项目里验证完整功能</h3>
+<p>跟写和相近练习完成后，再改网页中的一条自己的练习任务，刷新核对，最后查看统计。已有网页验收通过不需要每天反复点同样按钮；当你实际改了代码时再检查对应行为。</p>
+<div class="callout">今天的完成标准：能把“用户动作 → 参数 → SQL → 数据变化”连起来，并在参考帮助下写出一个相近修改片段。功能是否能用和你是否会写，分别记录。</div>
+</section>
+
+<section id="daily">
+<h2>9. 以后每天先看地图，再进入代码</h2>
+<p>每天开课前先保存当天讲义。第一部分固定回答：昨天停在哪里、今天解决哪个用户需求、网页会怎样变化、数据库会怎样变化、涉及哪些文件。然后只沿一条完整功能链学习。</p>
+<table><thead><tr><th>环节</th><th>建议时间</th><th>具体安排</th></tr></thead><tbody>
+<tr><td>整体地图</td><td>20 分钟</td><td>需求、页面前后变化、系统关系图；定位今天的部分</td></tr>
+<tr><td>概念和设计</td><td>25 分钟</td><td>为什么传这些参数，为什么用这些接口和 SQL</td></tr>
+<tr><td>实际代码追踪</td><td>25 分钟</td><td>从一个按钮跟到数据库，配准确文件和行号</td></tr>
+<tr><td>跟写</td><td>55 分钟</td><td>从最小片段到方法，逐步增加内容并检查</td></tr>
+<tr><td>相近小练习</td><td>25 分钟</td><td>改变一个字段或规则，必要时提供提示和参考答案</td></tr>
+<tr><td>运行验证</td><td>15 分钟</td><td>针对自己写的内容检查页面、接口和数据</td></tr>
+<tr><td>复盘</td><td>15 分钟</td><td>记录能理解、能跟写、还需帮助的部分</td></tr>
+</tbody></table>
+<p>合计约 180 分钟。时间是安排，不靠等待凑时长；卡在概念时先解释清楚，必要时缩减当天功能范围。前一版时间段合计 200 分钟，这里已统一为约三小时。</p>
+<h3>后续网页还会怎么变？</h3>
+<p>10/15 整理错误反馈：输入有误、未登录、无权限目标和服务异常，各有明确响应。之后逐日补清前端加载/保存/编辑、统计与筛选的代码，再做会话失效、独立页面路由、组件整理、测试和部署。已提前实现的功能以代码理解、跟写与相近修改为主，不再把点几下网页算成完整学习任务。</p>
+<p>后续路由让登录、任务、统计、设置拥有明确地址；加载状态让等待和失败可见；配置与部署让项目可以按指南重新运行。界面未必每节都换样式，但功能、数据可靠性和代码组织会逐步完善。</p>
+<h3>今天先从这里继续</h3>
+<p>先读第 1～4 节，知道当前项目全貌和今天的位置。之后我们从第 5 节的“改为已完成”走完整条链，再进入第 8 节跟写。今天不是让你继续猜几行代码，而是先建立完整功能的上下文。</p>
+</section>
+<footer>学习任务管理系统 · 文字、图解与书写练习 · 本文依据当前项目代码整理 · 后续每天先提供整体框架</footer>
+</main></body></html>
